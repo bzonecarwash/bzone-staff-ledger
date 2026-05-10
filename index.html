@@ -615,6 +615,7 @@
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;">
             <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px;">
               <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#dc2626;margin-bottom:6px;">👤 Staff Credit</div>
+              <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">Deducted on payday</div>
               <div class="field" style="margin-bottom:6px;"><label style="font-size:10px;">Staff Member</label><select id="logCreditStaff" class="inp" style="font-size:14px;padding:9px 10px;"><option value="">None</option></select></div>
               <div class="field" style="margin-bottom:0;"><label style="font-size:10px;">Qty</label><input id="logCreditQty" type="number" placeholder="0" class="inp" style="font-size:14px;padding:9px 10px;" inputmode="numeric" oninput="updateCreditAmt()"></div>
               <div id="creditAmtPreview" style="font-size:11px;color:#dc2626;margin-top:4px;display:none;"></div>
@@ -625,6 +626,16 @@
               <div class="field" style="margin-bottom:0;"><label style="font-size:10px;">Qty Sold</label><input id="logCustSoldQty" type="number" placeholder="0" class="inp" style="font-size:14px;padding:9px 10px;" inputmode="numeric" oninput="updateCustSoldPreview()"></div>
               <div id="custSoldPreview" style="font-size:11px;color:#15803d;margin-top:4px;display:none;"></div>
             </div>
+          </div>
+          <!-- Staff Cash Purchase -->
+          <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px;margin-bottom:4px;">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#1d4ed8;margin-bottom:6px;">💵 Staff Cash Purchase</div>
+            <div style="font-size:11px;color:#6b7280;margin-bottom:8px;">Staff buys at staff price — cash, not deducted from payroll</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div class="field" style="margin-bottom:0;"><label style="font-size:10px;">Staff Member</label><select id="logCashStaff" class="inp" style="font-size:14px;padding:9px 10px;"><option value="">None</option></select></div>
+              <div class="field" style="margin-bottom:0;"><label style="font-size:10px;">Qty</label><input id="logCashStaffQty" type="number" placeholder="0" class="inp" style="font-size:14px;padding:9px 10px;" inputmode="numeric" oninput="updateCashStaffPreview()"></div>
+            </div>
+            <div id="cashStaffPreview" style="font-size:11px;color:#1d4ed8;margin-top:4px;display:none;"></div>
           </div>
           <button onclick="addLogEntry()" class="btn-primary btn-red" style="margin-top:8px;">✔ Sold</button>
         </div>
@@ -1068,7 +1079,7 @@ function renderStaff() {
 // ===== SELECTS =====
 function renderAllSelects() {
   const opts = '<option value="">— Select staff —</option>' + staff.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-  ['attStaff','caStaff','sssStaff'].forEach(id => {
+  ['attStaff','caStaff','sssStaff','logCreditStaff','logCashStaff'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = opts;
   });
@@ -1778,6 +1789,18 @@ function updateCreditAmt() {
   }
 }
 
+function updateCashStaffPreview() {
+  const itemId  = parseInt(document.getElementById('logItem').value);
+  const qty     = parseFloat(document.getElementById('logCashStaffQty').value) || 0;
+  const item    = storeItems.find(i => i.id === itemId);
+  const preview = document.getElementById('cashStaffPreview');
+  if (item && qty > 0) {
+    const price = item.staffPrice || item.custPrice || 0;
+    preview.style.display = 'block';
+    preview.textContent   = `Cash: ${peso(price * qty)} (${qty} × ${peso(price)} staff price)`;
+  } else { preview.style.display = 'none'; }
+}
+
 function updateCustSoldPreview() {
   const itemId  = parseInt(document.getElementById('logItem').value);
   const qty     = parseFloat(document.getElementById('logCustSoldQty').value) || 0;
@@ -1801,21 +1824,26 @@ function addLogEntry() {
   const creditStaffId = parseInt(document.getElementById('logCreditStaff').value) || null;
   const creditQty     = parseFloat(document.getElementById('logCreditQty').value) || 0;
   const custSoldQty   = parseFloat(document.getElementById('logCustSoldQty').value) || 0;
+  const cashStaffId   = parseInt(document.getElementById('logCashStaff').value) || null;
+  const cashStaffQty  = parseFloat(document.getElementById('logCashStaffQty').value) || 0;
 
   if (!itemId) { alert('Select an item'); return; }
   if (!date)   { alert('Select a date'); return; }
-  if (creditQty === 0 && custSoldQty === 0) { alert('Enter at least one qty — Staff Credit or Sold to Customer'); return; }
+  if (creditQty === 0 && custSoldQty === 0 && cashStaffQty === 0) {
+    alert('Enter at least one qty — Staff Credit, Sold to Customer, or Staff Cash Purchase');
+    return;
+  }
 
   const item        = storeItems.find(i => i.id === itemId);
   const creditPrice = item.staffPrice || item.custPrice || 0;
   const creditAmt   = creditStaffId && creditQty > 0 ? creditPrice * creditQty : 0;
 
-  // sold = total units consumed = staff credit + customer sold
-  const sold = creditQty + custSoldQty;
+  // sold = credit + customer + staff cash — all deplete stock
+  const totalDepleted = creditQty + custSoldQty + cashStaffQty;
 
   storeLogs.push({
     id: Date.now(), date, staffId,
-    entries: [{ itemId, received, sold, creditStaffId, creditQty, creditAmt, custSoldQty }],
+    entries: [{ itemId, received, sold: totalDepleted, creditStaffId, creditQty, creditAmt, custSoldQty, cashStaffId, cashStaffQty }],
     status: 'approved',
     submittedAt: new Date().toLocaleString('en-PH')
   });
@@ -1829,13 +1857,16 @@ function addLogEntry() {
     });
   }
 
-  document.getElementById('logItem').value        = '';
-  document.getElementById('logReceived').value    = '';
-  document.getElementById('logCreditStaff').value = '';
-  document.getElementById('logCreditQty').value   = '';
-  document.getElementById('logCustSoldQty').value = '';
-  document.getElementById('creditAmtPreview').style.display = 'none';
-  document.getElementById('custSoldPreview').style.display  = 'none';
+  document.getElementById('logItem').value         = '';
+  document.getElementById('logReceived').value     = '';
+  document.getElementById('logCreditStaff').value  = '';
+  document.getElementById('logCreditQty').value    = '';
+  document.getElementById('logCustSoldQty').value  = '';
+  document.getElementById('logCashStaff').value    = '';
+  document.getElementById('logCashStaffQty').value = '';
+  document.getElementById('creditAmtPreview').style.display  = 'none';
+  document.getElementById('custSoldPreview').style.display   = 'none';
+  document.getElementById('cashStaffPreview').style.display  = 'none';
   save();
   renderDeductions();
   renderStoreSummary();
@@ -1936,7 +1967,8 @@ function renderStoreSummary() {
       custPrice:  i.custPrice  || 0,
       received:   0, sold: 0,
       staffCreditQty: 0, staffCreditAmt: 0,
-      custSoldQty: 0,  // cash sales to customers — not a credit
+      custSoldQty:    0,
+      cashStaffQty:   0,
     };
   });
 
@@ -1949,17 +1981,18 @@ function renderStoreSummary() {
       t.staffCreditQty += e.creditQty      || 0;
       t.staffCreditAmt += e.creditAmt      || 0;
       t.custSoldQty    += e.custSoldQty    || 0;
-      // legacy support for old custCredits data
+      t.cashStaffQty   += e.cashStaffQty   || 0;
       (e.custCredits||[]).forEach(c => { t.custSoldQty += c.qty || 0; });
     });
   });
 
   const rows = Object.values(totals).map(t => ({
     ...t,
-    // Remaining = Initial Stock − Total Sold (the master depletion field)
-    totalSold:   t.sold,
-    remaining:   Math.max(0, t.initialQty - t.sold),
-    cashRevenue: t.custSoldQty * t.custPrice,
+    custSold:    t.custSoldQty,
+    credit:      t.staffCreditQty,
+    staffCash:   t.cashStaffQty,
+    remaining:   Math.max(0, t.initialQty - t.custSoldQty - t.staffCreditQty - t.cashStaffQty),
+    cashRevenue: (t.custSoldQty + t.cashStaffQty) * t.custPrice,
   }));
 
   const totReceived    = rows.reduce((s,r) => s + r.received, 0);
@@ -2015,31 +2048,33 @@ function renderStoreSummary() {
               </div>
             </div>
 
-            <!-- 4-box grid -->
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;text-align:center;">
+            <!-- 5-box grid -->
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px;text-align:center;">
               <div style="background:#f3f4f6;border-radius:8px;padding:8px 4px;">
-                <div style="font-size:20px;font-weight:800;color:#374151;">${r.initialQty}</div>
-                <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;">Stock</div>
+                <div style="font-size:18px;font-weight:800;color:#374151;">${r.initialQty}</div>
+                <div style="font-size:8px;color:#6b7280;font-weight:700;text-transform:uppercase;">Stock</div>
               </div>
               <div style="background:#ecfdf5;border-radius:8px;padding:8px 4px;">
-                <div style="font-size:20px;font-weight:800;color:#047857;">${r.totalSold}</div>
-                <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;">Sold</div>
+                <div style="font-size:18px;font-weight:800;color:#047857;">${r.custSold}</div>
+                <div style="font-size:8px;color:#6b7280;font-weight:700;text-transform:uppercase;">🛒 Sold</div>
+              </div>
+              <div style="background:#eff6ff;border-radius:8px;padding:8px 4px;">
+                <div style="font-size:18px;font-weight:800;color:#1d4ed8;">${r.staffCash}</div>
+                <div style="font-size:8px;color:#6b7280;font-weight:700;text-transform:uppercase;">💵 Staff</div>
               </div>
               <div style="background:#fef9c3;border-radius:8px;padding:8px 4px;">
-                <div style="font-size:20px;font-weight:800;color:#92400e;">${r.staffCreditQty}</div>
-                <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;">👤 Credit</div>
+                <div style="font-size:18px;font-weight:800;color:#92400e;">${r.credit}</div>
+                <div style="font-size:8px;color:#6b7280;font-weight:700;text-transform:uppercase;">👤 Credit</div>
               </div>
               <div style="background:${r.remaining <= 0 ? '#fef2f2' : r.remaining <= 3 ? '#fffbeb' : '#f0fdf4'};border-radius:8px;padding:8px 4px;border:2px solid ${r.remaining <= 0 ? '#fca5a5' : r.remaining <= 3 ? '#fcd34d' : '#86efac'};">
-                <div style="font-size:20px;font-weight:800;color:${r.remaining <= 0 ? '#dc2626' : r.remaining <= 3 ? '#b45309' : '#15803d'};">${r.remaining}</div>
-                <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;">Left</div>
+                <div style="font-size:18px;font-weight:800;color:${r.remaining <= 0 ? '#dc2626' : r.remaining <= 3 ? '#b45309' : '#15803d'};">${r.remaining}</div>
+                <div style="font-size:8px;color:#6b7280;font-weight:700;text-transform:uppercase;">Left</div>
               </div>
             </div>
 
             <!-- Formula -->
             <div style="font-size:11px;color:#9ca3af;margin-top:6px;text-align:center;">
-              ${r.initialQty} stock − ${r.totalSold} sold = <strong style="color:${r.remaining<=0?'#dc2626':r.remaining<=3?'#b45309':'#15803d'};">${r.remaining} left</strong>
-              ${r.staffCreditQty > 0 ? `&nbsp;·&nbsp; ${r.staffCreditQty} on 👤 staff credit` : ''}
-              ${r.custSoldQty > 0 ? `&nbsp;·&nbsp; ${r.custSoldQty} to 🛒 customers` : ''}
+              ${r.initialQty} − ${r.custSold} 🛒 − ${r.staffCash} 💵 − ${r.credit} 👤 = <strong style="color:${r.remaining<=0?'#dc2626':r.remaining<=3?'#b45309':'#15803d'};">${r.remaining} left</strong>
             </div>
 
             ${r.staffCreditAmt>0 ? `
@@ -2069,9 +2104,10 @@ function restockItem(itemId) {
   const item = storeItems.find(i => i.id === itemId);
   if (!item) return;
   const current   = parseInt(item.qty) || 0;
-  const remaining = Math.max(0, current - storeLogs.filter(l => l.status === 'approved')
+  const soldTotal = storeLogs.filter(l => l.status === 'approved')
     .flatMap(l => l.entries).filter(e => e.itemId === itemId)
-    .reduce((s, e) => s + (e.sold || 0), 0));
+    .reduce((s, e) => s + (e.custSoldQty || 0) + (e.creditQty || 0), 0);
+  const remaining = Math.max(0, current - soldTotal);
 
   const val = prompt(
     `Restock "${item.name}"\n` +
