@@ -1954,9 +1954,10 @@ function renderStoreSummary() {
 
   const rows = Object.values(totals).map(t => ({
     ...t,
-    totalDeducted: t.staffCreditQty + t.custSoldQty,
-    remaining:     Math.max(0, t.initialQty - t.staffCreditQty - t.custSoldQty),
-    cashRevenue:   t.custSoldQty * t.custPrice,
+    // Remaining = Initial Stock − Total Sold (the master depletion field)
+    totalSold:   t.sold,
+    remaining:   Math.max(0, t.initialQty - t.sold),
+    cashRevenue: t.custSoldQty * t.custPrice,
   }));
 
   const totReceived    = rows.reduce((s,r) => s + r.received, 0);
@@ -2016,25 +2017,27 @@ function renderStoreSummary() {
             <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;text-align:center;">
               <div style="background:#f3f4f6;border-radius:8px;padding:8px 4px;">
                 <div style="font-size:20px;font-weight:800;color:#374151;">${r.initialQty}</div>
-                <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;">Total Inv.</div>
+                <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;">Stock</div>
+              </div>
+              <div style="background:#ecfdf5;border-radius:8px;padding:8px 4px;">
+                <div style="font-size:20px;font-weight:800;color:#047857;">${r.totalSold}</div>
+                <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;">Sold</div>
               </div>
               <div style="background:#fef9c3;border-radius:8px;padding:8px 4px;">
                 <div style="font-size:20px;font-weight:800;color:#92400e;">${r.staffCreditQty}</div>
                 <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;">👤 Credit</div>
               </div>
-              <div style="background:#dcfce7;border-radius:8px;padding:8px 4px;">
-                <div style="font-size:20px;font-weight:800;color:#15803d;">${r.custSoldQty}</div>
-                <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;">🛒 Sold</div>
-              </div>
-              <div style="background:${r.remaining <= 0 ? '#fef2f2' : '#f0fdf4'};border-radius:8px;padding:8px 4px;border:2px solid ${r.remaining <= 0 ? '#fca5a5' : '#86efac'};">
-                <div style="font-size:20px;font-weight:800;color:${r.remaining <= 0 ? '#dc2626' : '#15803d'};">${r.remaining}</div>
-                <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;">Remaining</div>
+              <div style="background:${r.remaining <= 0 ? '#fef2f2' : r.remaining <= 3 ? '#fffbeb' : '#f0fdf4'};border-radius:8px;padding:8px 4px;border:2px solid ${r.remaining <= 0 ? '#fca5a5' : r.remaining <= 3 ? '#fcd34d' : '#86efac'};">
+                <div style="font-size:20px;font-weight:800;color:${r.remaining <= 0 ? '#dc2626' : r.remaining <= 3 ? '#b45309' : '#15803d'};">${r.remaining}</div>
+                <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;">Left</div>
               </div>
             </div>
 
             <!-- Formula -->
             <div style="font-size:11px;color:#9ca3af;margin-top:6px;text-align:center;">
-              ${r.initialQty} − ${r.staffCreditQty} credit − ${r.custSoldQty} sold = <strong style="color:${r.remaining<=0?'#dc2626':'#15803d'};">${r.remaining} left</strong>
+              ${r.initialQty} stock − ${r.totalSold} sold = <strong style="color:${r.remaining<=0?'#dc2626':r.remaining<=3?'#b45309':'#15803d'};">${r.remaining} left</strong>
+              ${r.staffCreditQty > 0 ? `&nbsp;·&nbsp; ${r.staffCreditQty} on 👤 staff credit` : ''}
+              ${r.custSoldQty > 0 ? `&nbsp;·&nbsp; ${r.custSoldQty} to 🛒 customers` : ''}
             </div>
 
             ${r.staffCreditAmt>0 ? `
@@ -2059,20 +2062,45 @@ function renderStoreSummary() {
   `;
 }
 
-// ── Restock item — adds new stock on top of current total inventory ──
+// ── Restock item — resets inventory to new quantity, clears sold history ──
 function restockItem(itemId) {
   const item = storeItems.find(i => i.id === itemId);
   if (!item) return;
-  const current = parseInt(item.qty) || 0;
-  const val = prompt(`Restock "${item.name}"\nCurrent total inventory: ${current}\n\nHow many units are you adding?`, '');
+  const current   = parseInt(item.qty) || 0;
+  const remaining = Math.max(0, current - storeLogs.filter(l => l.status === 'approved')
+    .flatMap(l => l.entries).filter(e => e.itemId === itemId)
+    .reduce((s, e) => s + (e.sold || 0), 0));
+
+  const val = prompt(
+    `Restock "${item.name}"\n` +
+    `Current stock: ${current} | Remaining: ${remaining}\n\n` +
+    `Enter the NEW stock quantity (this will reset everything):`, ''
+  );
   if (val === null) return;
-  const add = parseInt(val);
-  if (isNaN(add) || add <= 0) { alert('Enter a valid number greater than 0'); return; }
-  item.qty = current + add;
+  const newQty = parseInt(val);
+  if (isNaN(newQty) || newQty <= 0) { alert('Enter a valid number greater than 0'); return; }
+
+  if (!confirm(`Reset "${item.name}" to ${newQty} units?\n\nThis will:\n✅ Set stock to ${newQty}\n🗑 Clear all previous sold logs for this item\n\nContinue?`)) return;
+
+  // Reset stock
+  item.qty = newQty;
+
+  // Remove all sold log entries for this item
+  storeLogs.forEach(log => {
+    log.entries = log.entries.filter(e => e.itemId !== itemId);
+  });
+  // Remove empty logs
+  storeLogs = storeLogs.filter(l => l.entries.length > 0);
+
+  // Remove store credits linked to this item
+  storeCredits = storeCredits.filter(c => !c.note || !c.note.includes(item.name));
+
   save();
   renderStoreItems();
   renderStoreSummary();
-  alert(`✅ Restocked! ${item.name} updated from ${current} → ${item.qty} units.`);
+  renderStoreCredits();
+  renderDeductions();
+  alert(`✅ "${item.name}" restocked to ${newQty} units. Sold history cleared.`);
 }
 
 // ===== FACTORY RESET =====
