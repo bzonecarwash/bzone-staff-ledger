@@ -879,7 +879,13 @@ function startPolling() {
 }
 
 async function pollForChanges() {
-  if (_isSaving) return; // don't poll while saving to avoid overwriting
+  if (_isSaving) return;
+
+  // Don't re-render if user is actively typing in any input/select
+  const active = document.activeElement;
+  const isTyping = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
+  if (isTyping) return;
+
   try {
     const res  = await fetch(`${SUPA_URL}/rest/v1/bzone_data?select=key,value,updated_at`, { headers: SUPA_HEADERS });
     const rows = await res.json();
