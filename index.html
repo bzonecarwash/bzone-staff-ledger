@@ -608,10 +608,9 @@
             <div class="field"><label>Date</label><input id="logDate" type="date" class="inp"></div>
             <div class="field"><label>Logged by</label><select id="logStaff" class="inp"></select></div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
             <div class="field"><label>Item</label><select id="logItem" class="inp" onchange="updateLogPrice()"></select></div>
             <div class="field"><label>Received</label><input id="logReceived" type="number" placeholder="0" class="inp" inputmode="numeric"></div>
-            <div class="field"><label>Sold</label><input id="logSold" type="number" placeholder="0" class="inp" inputmode="numeric"></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;">
             <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px;">
@@ -1799,17 +1798,21 @@ function addLogEntry() {
   const date          = document.getElementById('logDate').value;
   const staffId       = parseInt(document.getElementById('logStaff').value) || null;
   const received      = parseFloat(document.getElementById('logReceived').value) || 0;
-  const sold          = parseFloat(document.getElementById('logSold').value) || 0;
   const creditStaffId = parseInt(document.getElementById('logCreditStaff').value) || null;
   const creditQty     = parseFloat(document.getElementById('logCreditQty').value) || 0;
   const custSoldQty   = parseFloat(document.getElementById('logCustSoldQty').value) || 0;
+
   if (!itemId) { alert('Select an item'); return; }
   if (!date)   { alert('Select a date'); return; }
+  if (creditQty === 0 && custSoldQty === 0) { alert('Enter at least one qty — Staff Credit or Sold to Customer'); return; }
+
   const item        = storeItems.find(i => i.id === itemId);
   const creditPrice = item.staffPrice || item.custPrice || 0;
   const creditAmt   = creditStaffId && creditQty > 0 ? creditPrice * creditQty : 0;
 
-  // Save directly — custSoldQty is just a cash sale count, not a credit
+  // sold = total units consumed = staff credit + customer sold
+  const sold = creditQty + custSoldQty;
+
   storeLogs.push({
     id: Date.now(), date, staffId,
     entries: [{ itemId, received, sold, creditStaffId, creditQty, creditAmt, custSoldQty }],
@@ -1828,7 +1831,6 @@ function addLogEntry() {
 
   document.getElementById('logItem').value        = '';
   document.getElementById('logReceived').value    = '';
-  document.getElementById('logSold').value        = '';
   document.getElementById('logCreditStaff').value = '';
   document.getElementById('logCreditQty').value   = '';
   document.getElementById('logCustSoldQty').value = '';
