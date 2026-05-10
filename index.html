@@ -1878,7 +1878,6 @@ function renderStoreLog() {} // Log panel is form-only, no dynamic content
 
 // ---- STORE CREDITS VIEW ----
 function renderStoreCredits() {
-  // Populate dropdown
   const sel = document.getElementById('creditFilterStaff');
   if (sel) {
     const prev = sel.value;
@@ -1889,8 +1888,6 @@ function renderStoreCredits() {
 
   const filterStaffId = parseInt(document.getElementById('creditFilterStaff').value) || null;
 
-  // storeCredits is the single source of truth —
-  // auto-populated by ✔ Sold AND used by storeCreditFor() in Reports
   const allCredits = storeCredits.map(c => ({
     date:    c.date,
     staffId: c.staffId,
@@ -1898,47 +1895,84 @@ function renderStoreCredits() {
     note:    c.note || '',
   }));
 
-  // Filter by selected staff
   const filtered = filterStaffId
     ? allCredits.filter(c => c.staffId === filterStaffId)
     : allCredits;
 
   filtered.sort((a,b) => b.date.localeCompare(a.date));
 
-  // Total per staff (for summary cards)
+  // Total per staff
   const totByStaff = {};
   allCredits.forEach(c => {
     totByStaff[c.staffId] = (totByStaff[c.staffId] || 0) + c.amount;
   });
 
+  // Per-item breakdown for selected/filtered credits
+  const itemBreakdown = {};
+  filtered.forEach(c => {
+    // Parse item name from note e.g. "ROYAL ×1 (Store credit)"
+    const match = c.note.match(/^(.+?)\s*[×x](\d+)/i);
+    const itemName = match ? match[1].trim() : c.note || 'Other';
+    const qty      = match ? parseInt(match[2]) : 1;
+    if (!itemBreakdown[itemName]) itemBreakdown[itemName] = { qty: 0, amount: 0 };
+    itemBreakdown[itemName].qty    += qty;
+    itemBreakdown[itemName].amount += c.amount;
+  });
+
   const cards = document.getElementById('storeCreditSummaryCards');
   const list  = document.getElementById('storeCreditList');
 
-  // Summary cards — show all staff totals (or just selected)
+  // Staff total cards
   const cardStaff = filterStaffId
     ? staff.filter(s => s.id === filterStaffId)
     : staff.filter(s => totByStaff[s.id] > 0);
 
-  if (cardStaff.length) {
-    cards.style.display = 'grid';
-    cards.innerHTML = cardStaff.map(s => `
-      <div class="stat-card" style="background:#dc2626;color:#fff;">
-        <div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">${s.name.split(' ')[0]}</div>
-        <div class="df" style="font-size:20px;font-weight:700;">${peso(totByStaff[s.id]||0)}</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.7);">Total credit</div>
-      </div>`).join('');
-  } else {
-    cards.style.display = 'none';
-    cards.innerHTML = '';
-  }
+  const totalFiltered = filtered.reduce((s,c) => s + c.amount, 0);
 
-  // Credit list
+  cards.style.display = 'block';
+  cards.innerHTML = !cardStaff.length ? '' : `
+    <!-- Staff total cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:12px;">
+      ${cardStaff.map(s => `
+        <div class="stat-card" style="background:#dc2626;color:#fff;">
+          <div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:700;text-transform:uppercase;">${s.name.split(' ')[0]}</div>
+          <div class="df" style="font-size:20px;font-weight:700;">${peso(totByStaff[s.id]||0)}</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.7);">Total credit</div>
+        </div>`).join('')}
+    </div>
+
+    <!-- Per-item breakdown -->
+    ${Object.keys(itemBreakdown).length ? `
+    <div class="section-title">Item Breakdown ${filterStaffId ? '— ' + getStaffName(filterStaffId) : '(All Staff)'}</div>
+    <div class="card" style="margin-bottom:10px;">
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:0;font-size:12px;font-weight:700;color:#6b7280;padding:8px 16px;border-bottom:1px solid #f0f0f0;text-transform:uppercase;letter-spacing:.05em;">
+        <span>Item</span><span style="text-align:center;padding-right:16px;">Qty</span><span style="text-align:right;">Amount</span>
+      </div>
+      ${Object.entries(itemBreakdown).map(([name, data]) => `
+        <div style="display:grid;grid-template-columns:1fr auto auto;align-items:center;padding:10px 16px;border-bottom:1px solid #f9f9f9;">
+          <div style="font-weight:600;font-size:14px;color:#111;">🥤 ${name}</div>
+          <div style="text-align:center;padding-right:16px;">
+            <span style="background:#fef9c3;color:#92400e;font-weight:700;font-size:13px;padding:3px 10px;border-radius:99px;">${data.qty} pcs</span>
+          </div>
+          <div style="font-weight:800;font-size:15px;color:#dc2626;text-align:right;">- ${peso(data.amount)}</div>
+        </div>`).join('')}
+      <div style="display:grid;grid-template-columns:1fr auto auto;align-items:center;padding:10px 16px;background:#fef2f2;">
+        <div style="font-weight:700;font-size:14px;color:#111;">TOTAL</div>
+        <div style="text-align:center;padding-right:16px;">
+          <span style="background:#dc2626;color:#fff;font-weight:700;font-size:13px;padding:3px 10px;border-radius:99px;">${filtered.length} entries</span>
+        </div>
+        <div style="font-weight:800;font-size:16px;color:#dc2626;text-align:right;">- ${peso(totalFiltered)}</div>
+      </div>
+    </div>` : ''}`;
+
   if (!filtered.length) {
     list.innerHTML = '<div style="padding:32px;text-align:center;color:#9ca3af;">No store credits found.</div>';
     return;
   }
 
-  list.innerHTML = filtered.map(c => `
+  list.innerHTML = `
+    <div class="section-title">Detailed History</div>
+    ${filtered.map(c => `
     <div class="row">
       <div class="row-left">
         <div style="font-weight:700;font-size:15px;color:#111;">${getStaffName(c.staffId)}</div>
@@ -1946,7 +1980,7 @@ function renderStoreCredits() {
         <div style="font-size:12px;color:#374151;margin-top:2px;">🥤 ${c.note || 'Store credit'}</div>
       </div>
       <div class="df" style="font-size:18px;font-weight:800;color:#dc2626;flex-shrink:0;">- ${peso(c.amount)}</div>
-    </div>`).join('');
+    </div>`).join('')}`;
 }
 
 // ---- STORE SUMMARY ----
