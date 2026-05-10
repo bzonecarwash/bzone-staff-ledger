@@ -606,7 +606,7 @@
         <div class="card-body">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;">
             <div class="field"><label>Date</label><input id="logDate" type="date" class="inp"></div>
-            <div class="field"><label>Logged by</label><select id="logStaff" class="inp"></select></div>
+            <div class="field" id="logStaffField"><label>Logged by</label><select id="logStaff" class="inp"></select></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
             <div class="field"><label>Item</label><select id="logItem" class="inp" onchange="updateLogPrice()"></select></div>
@@ -1083,9 +1083,27 @@ function renderAllSelects() {
     const el = document.getElementById(id);
     if (el) el.innerHTML = opts;
   });
-  // Log staff selects
+  // logStaff — manager sees dropdown of cashier staff, others get auto-filled
   const ls = document.getElementById('logStaff');
-  if (ls) ls.innerHTML = opts;
+  const logStaffField = document.getElementById('logStaffField');
+  const CASHIER_NAMES = ['Julius Palmes', 'Mark Angelo Salamanca'];
+  const cashierStaff  = staff.filter(s => CASHIER_NAMES.includes(s.name));
+  if (ls) {
+    if (currentUser && currentUser.role === 'manager') {
+      // Manager sees all cashier staff + self
+      ls.innerHTML = '<option value="">— Select staff —</option>' +
+        staff.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+      if (logStaffField) logStaffField.style.display = '';
+    } else {
+      // Auto-fill with logged-in user's staff record
+      const myStaff = staff.find(s => s.name.toLowerCase().includes(currentUser?.display?.split(' ')[0]?.toLowerCase() || ''));
+      ls.innerHTML = myStaff
+        ? `<option value="${myStaff.id}">${myStaff.name}</option>`
+        : `<option value="">— ${currentUser?.display || 'Unknown'} —</option>`;
+      if (myStaff) ls.value = myStaff.id;
+      if (logStaffField) logStaffField.style.display = 'none'; // hide for staff
+    }
+  }
   const lcs = document.getElementById('logCreditStaff');
   if (lcs) lcs.innerHTML = '<option value="">None</option>' + staff.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
   const det = document.getElementById('detStaff');
@@ -1819,7 +1837,12 @@ function updateCustSoldPreview() {
 function addLogEntry() {
   const itemId        = parseInt(document.getElementById('logItem').value);
   const date          = document.getElementById('logDate').value;
-  const staffId       = parseInt(document.getElementById('logStaff').value) || null;
+  // Auto-assign logged-in user as staff if not manager
+  let staffId = parseInt(document.getElementById('logStaff').value) || null;
+  if (!staffId && currentUser && currentUser.role !== 'manager') {
+    const myStaff = staff.find(s => s.name.toLowerCase().includes(currentUser.display.split(' ')[0].toLowerCase()));
+    if (myStaff) staffId = myStaff.id;
+  }
   const received      = parseFloat(document.getElementById('logReceived').value) || 0;
   const creditStaffId = parseInt(document.getElementById('logCreditStaff').value) || null;
   const creditQty     = parseFloat(document.getElementById('logCreditQty').value) || 0;
