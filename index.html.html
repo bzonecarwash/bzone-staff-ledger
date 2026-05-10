@@ -1,0 +1,2294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>BZONE Staff Ledger</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+
+  /* Full-screen app layout */
+  html, body { height: 100%; overflow: hidden; }
+  body { font-family: 'Inter', sans-serif; background: #f5f5f5; display: flex; flex-direction: column; }
+  .df { font-family: 'Fraunces', Georgia, serif; }
+  .hide { display: none !important; }
+  input, select, button { font-family: 'Inter', sans-serif; font-size: 16px; }
+  input:focus, select:focus { outline: none; border-color: #dc2626 !important; box-shadow: 0 0 0 3px rgba(220,38,38,0.12); }
+
+  /* Header stays fixed at top */
+  #appHeader { flex-shrink: 0; }
+
+  /* Bottom nav stays fixed at bottom */
+  #bottomNav { flex-shrink: 0; background: #000; border-top: 3px solid #dc2626; display: flex; }
+  #bottomNav button { flex: 1; padding: 10px 4px 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; color: #6b7280; font-size: 10px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; border: none; background: none; cursor: pointer; transition: color 0.15s; }
+  #bottomNav button.active { color: #dc2626; }
+  #bottomNav button .nav-icon { font-size: 22px; line-height: 1; }
+
+  /* Main content area fills remaining space */
+  #appBody { flex: 1; overflow: hidden; position: relative; }
+
+  /* Each tab fills the app body */
+  .tab-section { display: none; flex-direction: column; height: 100%; max-width: 600px; margin: 0 auto; }
+  .tab-section.active { display: flex; }
+
+  /* Fixed top part of each tab (form) */
+  .tab-top { flex-shrink: 0; background: #f5f5f5; padding: 10px 12px 4px; }
+
+  /* Scrollable bottom part of each tab (list) */
+  .tab-scroll { flex: 1; overflow-y: auto; padding: 0 12px 12px; -webkit-overflow-scrolling: touch; }
+
+  /* ===== DEDUCTIONS TAB: No-scroll maximized layout ===== */
+
+  /* Mobile: mini tab switcher inside deductions */
+  #deductSubNav { display: flex; gap: 0; background: #000; border-radius: 10px; overflow: hidden; margin: 10px 12px 8px; flex-shrink: 0; }
+  #deductSubNav button { flex: 1; padding: 10px 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; border: none; background: none; color: #6b7280; cursor: pointer; transition: all .15s; }
+  #deductSubNav button.active { background: #dc2626; color: #fff; }
+
+  .deduct-panel { display: none; flex-direction: column; flex: 1; overflow: hidden; min-height: 0; }
+  .deduct-panel.active { display: flex; }
+
+  /* Each panel: form fixed top + list scrolls */
+  .dp-form { flex-shrink: 0; padding: 0 12px 6px; }
+  .dp-list { flex: 1; overflow-y: auto; padding: 0 12px 12px; -webkit-overflow-scrolling: touch; min-height: 0; }
+
+  #tab-deductions { flex-direction: column; overflow: hidden; }
+  #tab-deductions .tab-top { display: none; } /* hide old tab-top */
+  #tab-deductions .tab-scroll { display: none; } /* hide old tab-scroll */
+
+  /* ===== DESKTOP LAYOUT (768px and above) ===== */
+  @media (min-width: 768px) {
+    /* Hide mobile sub-nav on desktop */
+    #deductSubNav { display: none; }
+    .deduct-panel { display: flex !important; }
+
+    /* Deductions tab: 3 equal columns, each independently scrollable */
+    #tab-deductions {
+      flex-direction: row !important;
+      overflow: hidden;
+    }
+    #tab-deductions .deduct-panel {
+      flex: 1;
+      border-right: 1px solid #e5e7eb;
+      background: #f5f5f5;
+      overflow: hidden;
+      min-height: 0;
+    }
+    #tab-deductions .deduct-panel:last-child { border-right: none; background: #f0f0f0; }
+    .dp-form { padding: 16px 16px 8px; }
+    .dp-list { padding: 0 16px 16px; }
+  }
+
+  /* ===== DESKTOP LAYOUT (768px and above) ===== */
+  @media (min-width: 768px) {
+
+    /* Header full width */
+    #appHeader > div { max-width: 100% !important; padding: 14px 32px !important; }
+
+    /* Left sidebar nav */
+    #bottomNav {
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      width: 100px;
+      flex-direction: column;
+      border-top: none;
+      border-right: 3px solid #dc2626;
+      padding-top: 20px;
+      z-index: 100;
+    }
+    #bottomNav button { padding: 14px 6px; font-size: 9px; }
+    #bottomNav button .nav-icon { font-size: 24px; }
+
+    /* App body fills all space to right of sidebar */
+    body { flex-direction: row; padding-bottom: 0; }
+    #appWrapper { flex-direction: row; width: 100%; }
+    #appHeader { position: fixed; top: 0; left: 100px; right: 0; z-index: 99; }
+    #appBody {
+      margin-left: 100px;
+      margin-top: 68px;
+      width: calc(100% - 100px);
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── STANDARD TABS (form left | list right) ── */
+    .tab-section {
+      flex-direction: row;
+      max-width: 100%;
+      width: 100%;
+    }
+
+    /* LEFT PANEL — form area, flexible width */
+    .tab-top {
+      width: 360px;
+      min-width: 280px;
+      max-width: 420px;
+      flex-shrink: 0;
+      height: 100%;
+      overflow-y: auto;
+      padding: 20px 20px;
+      border-right: 1px solid #e5e7eb;
+      background: #f8f8f8;
+    }
+
+    /* RIGHT PANEL — list/content fills everything else */
+    .tab-scroll {
+      flex: 1;
+      min-width: 0;
+      padding: 20px 28px;
+      background: #f0f0f0;
+      overflow-y: auto;
+    }
+
+    /* Cards fill width, nicer radius */
+    .card { border-radius: 14px; }
+
+    /* Multi-column grids on wide screens */
+    #repCards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 16px;
+    }
+    #repCards > div { margin-bottom: 0 !important; }
+
+    #tipAccumulated { grid-template-columns: repeat(5, 1fr) !important; }
+    /* Tips tab: tab-scroll is a flex column, only pool list scrolls */
+    #tab-tips .tab-scroll { overflow: hidden; }
+    #tab-tips #tipAccumulated { margin-bottom: 8px !important; }
+    .summary-strip.three { grid-template-columns: 1fr 1fr 1fr; }
+
+    /* Attendance list — two columns */
+    #attList { display: block; }
+    #attList .row { border-right: none; }
+
+    /* Details tab: left panel scrollable to show pay computation */
+    #tab-details .tab-top {
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      height: 100%;
+      padding-bottom: 20px;
+    }
+    #tab-details .tab-top .card { flex-shrink: 0; }
+    #tab-details .tab-top .card-body { padding: 10px 14px; }
+    #tab-details .tab-top .field { margin-bottom: 8px; }
+    #tab-details .tab-top .inp { padding: 9px 12px; font-size: 14px; }
+
+    /* ── DEDUCTIONS TAB — stacked: CA top half, SSS bottom half ── */
+    #tab-deductions { flex-direction: column !important; overflow: hidden; }
+    #deductSubNav { display: none; }
+    #dp-ca, #dp-sss {
+      display: flex !important;
+      flex-direction: row;
+      flex: 1;
+      min-height: 0;
+    }
+    #dp-ca { border-bottom: 2px solid #dc2626; }
+
+    /* Form side — compact, fixed, no scroll */
+    #dp-ca .dp-form, #dp-sss .dp-form {
+      width: 300px;
+      min-width: 240px;
+      flex-shrink: 0;
+      height: 100%;
+      overflow: hidden;
+      padding: 10px 14px;
+      border-right: 1px solid #e5e7eb;
+      background: #f8f8f8;
+    }
+    #dp-ca .dp-form .card,
+    #dp-sss .dp-form .card { margin-bottom: 0; }
+    #dp-ca .dp-form .card-header,
+    #dp-sss .dp-form .card-header { padding: 9px 14px; }
+    #dp-ca .dp-form .card-body,
+    #dp-sss .dp-form .card-body { padding: 10px 14px; }
+    #dp-ca .dp-form .field,
+    #dp-sss .dp-form .field { margin-bottom: 7px; }
+    #dp-ca .dp-form .inp,
+    #dp-sss .dp-form .inp { padding: 8px 10px; font-size: 14px; }
+    #dp-ca .dp-form .btn-primary,
+    #dp-sss .dp-form .btn-primary { padding: 9px; font-size: 13px; }
+
+    /* History side — scrollable */
+    #dp-ca .dp-list, #dp-sss .dp-list {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      overflow-y: auto;
+      padding: 12px 16px;
+      background: #f0f0f0;
+    }
+
+    /* ── STORE TAB — column layout with wider content ── */
+    #tab-store { flex-direction: column !important; overflow: hidden; }
+    #tab-store > #storeSubNav {
+      flex-shrink: 0;
+      margin: 12px 24px 0;
+      border-radius: 10px;
+    }
+    #tab-store .tab-section {
+      flex-direction: column;
+      width: 100%; max-width: 100%;
+      flex: 1; overflow: hidden;
+    }
+    #tab-store .tab-top {
+      width: 100%; max-width: 100%;
+      height: auto; overflow-y: visible;
+      border-right: none;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 16px 24px 12px;
+      background: #f8f8f8;
+    }
+    #tab-store .tab-scroll {
+      flex: 1; padding: 16px 24px; background: #f0f0f0;
+    }
+    #sp-items, #sp-log, #sp-credits, #sp-summary { height: 100%; }
+
+    /* Store items — 2 column grid */
+    #itemList { display: grid; grid-template-columns: 1fr 1fr; }
+    #itemList .row { border-right: 1px solid #f0f0f0; }
+
+    /* Store sold form — wider layout */
+    #tab-store .tab-top .card-body { max-width: 700px; }
+
+    /* Summary and credits — wider content */
+    #storeSummaryContent { max-width: 100%; }
+    #storeCreditSummaryCards {
+      grid-template-columns: repeat(5, 1fr) !important;
+      max-width: 100%;
+    }
+    #storeCreditList .row { display: grid; grid-template-columns: 1fr 1fr; }
+
+    /* Pool list in tips — 2 columns */
+    #poolList > div { display: grid; grid-template-columns: 1fr 1fr; }
+
+    /* Staff list — 2 columns */
+    #staffList { display: grid; grid-template-columns: 1fr 1fr; }
+    #staffList .row { border-right: 1px solid #f0f0f0; }
+
+    /* Details tab pay computation — show in left panel, hide in right */
+    .det-pay-comp-desktop { display: block !important; margin-top: 12px; }
+    .det-pay-comp-mobile  { display: none !important; }
+
+    /* Bigger font for desktop */
+    .df { font-size: inherit; }
+  }
+
+
+  /* Cards */
+  .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 10px; overflow: hidden; }
+  .card-header { padding: 13px 16px; border-bottom: 1px solid #f0f0f0; }
+  .card-body { padding: 14px 16px; }
+
+  /* Inputs */
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #6b7280; margin-bottom: 5px; }
+  .inp { width: 100%; padding: 13px 14px; border: 1.5px solid #e5e7eb; border-radius: 10px; font-size: 16px; color: #111; background: #fff; }
+  .inp:focus { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,0.1); outline: none; }
+
+  /* Buttons */
+  .btn-primary { width: 100%; padding: 14px; background: #000; color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn-primary:active { background: #222; }
+  .btn-red { background: #dc2626; }
+  .btn-red:active { background: #b91c1c; }
+
+  /* List rows */
+  .row { display: flex; align-items: flex-start; justify-content: space-between; padding: 13px 16px; border-bottom: 1px solid #f5f5f5; gap: 10px; }
+  .row:last-child { border-bottom: none; }
+  .row-left { flex: 1; min-width: 0; }
+  .row-right { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+  .del-btn { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border: none; background: none; color: #9ca3af; font-size: 18px; cursor: pointer; border-radius: 6px; }
+  .del-btn:active { background: #fee2e2; color: #dc2626; }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid; }
+  .badge-present { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+  .badge-half    { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+  .badge-absent  { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+
+  /* Summary strip */
+  .summary-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .summary-strip.three { grid-template-columns: 1fr 1fr 1fr; }
+  .stat-card { border-radius: 10px; padding: 12px 14px; }
+
+  /* Section label */
+  .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #9ca3af; margin: 10px 2px 6px; }
+
+  /* Staff avatar */
+  .avatar { width: 40px; height: 40px; border-radius: 50%; background: #dc2626; color: #fff; display: flex; align-items: center; justify-content: center; font-family: 'Fraunces', serif; font-size: 18px; font-weight: 700; flex-shrink: 0; }
+
+  /* Edit inline buttons */
+  .mini-btn { font-size: 12px; padding: 5px 10px; border: 1px solid #d1d5db; border-radius: 6px; color: #374151; background: #fff; cursor: pointer; }
+  .mini-btn:active { background: #f3f4f6; }
+
+  /* Details tab pay computation — base (mobile): desktop div hidden, mobile div visible */
+  .det-pay-comp-desktop { display: none; }
+  .det-pay-comp-mobile  { display: block; }
+  #loginScreen {
+    position: fixed; inset: 0; z-index: 9999;
+    background: #000;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #loginScreen.hidden { display: none; }
+  #appWrapper { display: none; flex-direction: column; height: 100%; }
+  #appWrapper.visible { display: flex; }
+</style>
+</head>
+<body>
+
+<!-- ===== LOGIN SCREEN ===== -->
+<div id="loginScreen">
+  <div style="background:#111;border-radius:20px;padding:32px 28px;width:100%;max-width:360px;border:2px solid #dc2626;box-shadow:0 20px 60px rgba(220,38,38,0.3);">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div class="df" style="font-size:32px;font-weight:700;color:#fff;line-height:1;">BZONE <span style="color:#dc2626;font-style:italic;">Staff Ledger</span></div>
+      <div style="font-size:13px;color:#6b7280;margin-top:6px;">Sign in to continue</div>
+    </div>
+    <div id="loginError" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;font-size:13px;color:#dc2626;text-align:center;margin-bottom:14px;">
+      ❌ Incorrect username or password.
+    </div>
+    <div class="field">
+      <label style="color:#9ca3af;">Username</label>
+      <input id="loginUser" type="text" placeholder="Enter username" autocomplete="username" autocapitalize="none"
+        style="width:100%;padding:13px 14px;border:1.5px solid #374151;border-radius:10px;font-size:16px;color:#fff;background:#1f2937;outline:none;"
+        onfocus="this.style.borderColor='#dc2626'" onblur="this.style.borderColor='#374151'">
+    </div>
+    <div class="field" style="margin-bottom:20px;">
+      <label style="color:#9ca3af;">Password</label>
+      <div style="position:relative;">
+        <input id="loginPass" type="password" placeholder="Enter password" autocomplete="current-password"
+          style="width:100%;padding:13px 44px 13px 14px;border:1.5px solid #374151;border-radius:10px;font-size:16px;color:#fff;background:#1f2937;outline:none;"
+          onfocus="this.style.borderColor='#dc2626'" onblur="this.style.borderColor='#374151'"
+          onkeydown="if(event.key==='Enter') doLogin()">
+        <button onclick="togglePass()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:#6b7280;cursor:pointer;font-size:18px;" id="passToggleBtn">👁</button>
+      </div>
+    </div>
+    <button onclick="doLogin()" style="width:100%;padding:14px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:.02em;">
+      Sign In
+    </button>
+    <div style="text-align:center;margin-top:16px;font-size:11px;color:#374151;">Staff Ledger · Private Access Only</div>
+  </div>
+</div>
+
+<!-- ===== MAIN APP WRAPPER ===== -->
+<div id="appWrapper">
+
+<!-- HEADER -->
+<header id="appHeader" style="background:#000; border-bottom: 3px solid #dc2626;">
+  <div style="max-width:600px; margin:0 auto; padding: 13px 16px; display:flex; align-items:center; justify-content:space-between;">
+    <div>
+      <div class="df" style="font-size:24px; font-weight:700; color:#fff; line-height:1;">BZONE <span style="color:#dc2626; font-style:italic;">Staff Ledger</span></div>
+      <div style="font-size:11px; color:#6b7280; margin-top:2px;">Attendance · Salary · Tips</div>
+    </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div style="text-align:right;">
+          <div style="font-size:10px; color:#dc2626; font-weight:700; text-transform:uppercase; letter-spacing:.07em;">Today</div>
+          <div id="todayDate" style="font-size:13px; color:#e5e7eb; font-weight:500;"></div>
+        </div>
+        <button onclick="logout()" style="background:#374151;border:none;border-radius:8px;padding:8px 10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;" title="Sign Out">
+          <span style="font-size:18px;line-height:1;">🚪</span>
+          <span style="font-size:9px;color:#fff;font-weight:700;letter-spacing:.05em;">OUT</span>
+        </button>
+        <button id="pushCloudBtn" onclick="pushToCloud()" style="display:none;background:#15803d;border:none;border-radius:8px;padding:8px 10px;cursor:pointer;display:none;flex-direction:column;align-items:center;gap:2px;" title="Push to Cloud">
+          <span style="font-size:18px;line-height:1;">☁️</span>
+          <span style="font-size:9px;color:#fff;font-weight:700;letter-spacing:.05em;">PUSH</span>
+        </button>
+        <button onclick="showResetModal()" style="background:#dc2626; border:none; border-radius:8px; padding:8px 10px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:2px;" title="Factory Reset">
+          <span style="font-size:18px; line-height:1;">🔄</span>
+          <span style="font-size:9px; color:#fff; font-weight:700; letter-spacing:.05em;">RESET</span>
+        </button>
+      </div>
+  </div>
+</header>
+
+<!-- RESET MODAL -->
+<div id="resetModal" style="display:none; position:fixed; inset:0; z-index:999; background:rgba(0,0,0,0.75); align-items:center; justify-content:center; padding:24px;">
+  <div style="background:#fff; border-radius:16px; padding:24px; max-width:340px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+    <div style="text-align:center; margin-bottom:20px;">
+      <div style="font-size:40px; margin-bottom:8px;">⚠️</div>
+      <div class="df" style="font-size:22px; font-weight:700; color:#111;">Factory Reset</div>
+      <div style="font-size:13px; color:#6b7280; margin-top:6px; line-height:1.5;">This will permanently delete <strong>all staff, attendance, tips, and deductions</strong>. This cannot be undone.</div>
+    </div>
+
+    <div id="resetStep1">
+      <div style="font-size:13px; font-weight:600; color:#374151; margin-bottom:8px;">Enter PIN to continue:</div>
+      <input id="resetPin" type="password" inputmode="numeric" maxlength="6" placeholder="Enter PIN" class="inp" style="text-align:center; letter-spacing:0.3em; font-size:20px; margin-bottom:12px;">
+      <div id="resetPinError" style="display:none; font-size:12px; color:#dc2626; text-align:center; margin-bottom:8px;">❌ Incorrect PIN. Try again.</div>
+      <button onclick="checkResetPin()" style="width:100%; padding:14px; background:#dc2626; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:10px;">Continue</button>
+      <button onclick="hideResetModal()" style="width:100%; padding:12px; background:#f3f4f6; color:#374151; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer;">Cancel</button>
+    </div>
+
+    <div id="resetStep2" style="display:none;">
+      <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:14px; margin-bottom:16px; text-align:center;">
+        <div style="font-size:13px; color:#b91c1c; font-weight:600;">Are you absolutely sure?</div>
+        <div style="font-size:12px; color:#dc2626; margin-top:4px;">All data will be wiped. Staff will be reset to defaults.</div>
+      </div>
+      <button onclick="doFactoryReset()" style="width:100%; padding:14px; background:#dc2626; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:10px;">🗑 Yes, Reset Everything</button>
+      <button onclick="hideResetModal()" style="width:100%; padding:12px; background:#f3f4f6; color:#374151; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="appBody">
+
+<!-- STAFF TAB -->
+<div id="tab-staff" class="tab-section active">
+  <div class="tab-top">
+    <div class="card">
+      <div class="card-header"><span class="df" style="font-size:16px;font-weight:700;">Add Staff Member</span></div>
+      <div class="card-body">
+        <div class="field"><label>Full Name</label><input id="newStaffName" type="text" placeholder="e.g. Juan dela Cruz" class="inp" autocomplete="off"></div>
+        <div class="field"><label>Position</label><input id="newStaffPos" type="text" placeholder="e.g. Server" class="inp" autocomplete="off"></div>
+        <div class="field"><label>Daily Rate (₱)</label><input id="newStaffRate" type="number" placeholder="450" class="inp" inputmode="decimal"></div>
+        <button onclick="addStaff()" class="btn-primary">＋ Add Staff</button>
+      </div>
+    </div>
+  </div>
+  <div class="tab-scroll">
+    <div class="section-title">Your Team (<span id="staffCount">0</span>)</div>
+    <div class="card"><div id="staffList"></div></div>
+  </div>
+</div>
+
+<!-- ATTENDANCE TAB -->
+<div id="tab-attendance" class="tab-section">
+  <div class="tab-top">
+    <div class="card">
+      <div class="card-header"><span class="df" style="font-size:16px;font-weight:700;">Log Attendance</span></div>
+      <div class="card-body">
+        <div class="field"><label>Staff Member</label><select id="attStaff" class="inp"></select></div>
+        <div class="field"><label>Date</label><input id="attDate" type="date" class="inp"></div>
+        <div class="field"><label>Status</label>
+          <select id="attStatus" class="inp">
+            <option value="present">✅ Present</option>
+            <option value="half">🕐 Half Day</option>
+            <option value="absent">❌ Absent</option>
+          </select>
+        </div>
+        <button onclick="addAttendance()" class="btn-primary">＋ Log Attendance</button>
+      </div>
+    </div>
+  </div>
+  <div class="tab-scroll">
+    <div class="section-title">Attendance Log (<span id="attCount">0</span>)</div>
+    <div class="card"><div id="attList"></div></div>
+  </div>
+</div>
+
+<!-- TIPS TAB -->
+<div id="tab-tips" class="tab-section">
+  <div class="tab-top">
+    <div class="card">
+      <div class="card-header"><span class="df" style="font-size:16px;font-weight:700;">Record Daily Tip Pool</span></div>
+      <div class="card-body">
+        <div style="font-size:13px;color:#6b7280;margin-bottom:10px;">Enter total tips for the day. Auto-splits among Present (full) and Half-day (half) staff.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="field"><label>Date</label><input id="tipDate" type="date" class="inp"></div>
+          <div class="field"><label>Total Tips (₱)</label><input id="tipAmount" type="number" placeholder="0.00" class="inp" inputmode="decimal" oninput="updateTipPreview()"></div>
+        </div>
+        <div id="tipPreview" style="margin-bottom:10px;"></div>
+        <button onclick="addTipPool()" class="btn-primary">＋ Record Tip Pool</button>
+      </div>
+    </div>
+  </div>
+  <div class="tab-scroll" style="display:flex;flex-direction:column;">
+    <div class="section-title" style="flex-shrink:0;">Accumulated Tips (All Time)</div>
+    <div id="tipAccumulated" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;flex-shrink:0;"></div>
+    <div class="section-title" style="flex-shrink:0;">Daily Tip Pools (<span id="poolCount">0</span>)</div>
+    <div style="flex:1;min-height:0;overflow-y:auto;"><div class="card"><div id="poolList"></div></div></div>
+  </div>
+</div>
+
+<!-- DEDUCTIONS TAB -->
+<div id="tab-deductions" class="tab-section">
+
+  <!-- Mobile sub-nav -->
+  <div id="deductSubNav">
+    <button class="active" onclick="switchDeduct('ca')">💸 Cash Adv.</button>
+    <button onclick="switchDeduct('sss')">📋 SSS</button>
+  </div>
+
+  <!-- Panel 1: Cash Advance -->
+  <div id="dp-ca" class="deduct-panel active">
+    <div class="dp-form">
+      <div class="card">
+        <div class="card-header"><span class="df" style="font-size:15px;font-weight:700;">💸 Cash Advance</span></div>
+        <div class="card-body">
+          <div class="field"><label>Staff Member</label><select id="caStaff" class="inp"></select></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="field"><label>Date</label><input id="caDate" type="date" class="inp"></div>
+            <div class="field"><label>Amount (₱)</label><input id="caAmount" type="number" placeholder="0.00" class="inp" inputmode="decimal"></div>
+          </div>
+          <div class="field"><label>Note (optional)</label><input id="caNote" type="text" placeholder="e.g. For groceries" class="inp" autocomplete="off"></div>
+          <button onclick="addCashAdvance()" class="btn-primary">＋ Record</button>
+        </div>
+      </div>
+    </div>
+    <div class="dp-list">
+      <div class="section-title">History (<span id="caCount">0</span>)</div>
+      <div class="card"><div id="caList"></div></div>
+    </div>
+  </div>
+
+  <!-- Panel 2: SSS -->
+  <div id="dp-sss" class="deduct-panel">
+    <div class="dp-form">
+      <div class="card">
+        <div class="card-header"><span class="df" style="font-size:15px;font-weight:700;">📋 SSS Deduction</span></div>
+        <div class="card-body">
+          <div class="field"><label>Staff Member</label><select id="sssStaff" class="inp"></select></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="field"><label>Date</label><input id="sssDate" type="date" class="inp"></div>
+            <div class="field"><label>Amount (₱)</label><input id="sssAmount" type="number" value="350" class="inp" inputmode="decimal"></div>
+          </div>
+          <div class="field"><label>Note (optional)</label><input id="sssNote" type="text" placeholder="e.g. October 2026" class="inp" autocomplete="off"></div>
+          <button onclick="addSSS()" class="btn-primary">＋ Record</button>
+        </div>
+      </div>
+    </div>
+    <div class="dp-list">
+      <div class="section-title">History (<span id="sssCount">0</span>)</div>
+      <div class="card"><div id="sssList"></div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- STORE TAB -->
+<div id="tab-store" class="tab-section">
+
+  <!-- Store sub-nav -->
+  <div id="storeSubNav" style="display:flex;gap:0;background:#000;border-radius:10px;overflow:hidden;margin:10px 12px 8px;flex-shrink:0;">
+    <button id="ssnItems"   onclick="switchStore('items')"   style="flex:1;padding:10px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border:none;background:none;color:#6b7280;cursor:pointer;">📦 Items</button>
+    <button id="ssnLog"     onclick="switchStore('log')"     style="flex:1;padding:10px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border:none;background:none;color:#6b7280;cursor:pointer;">🛒 Sold</button>
+    <button id="ssnCredits" onclick="switchStore('credits')" style="flex:1;padding:10px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border:none;background:none;color:#6b7280;cursor:pointer;">💳 Credits</button>
+    <button id="ssnSummary" onclick="switchStore('summary')" style="flex:1;padding:10px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border:none;background:#dc2626;color:#fff;cursor:pointer;">📊 Summary</button>
+  </div>
+
+  <!-- PANEL: Items Management -->
+  <div id="sp-items" class="tab-section" style="flex-direction:column;">
+    <div class="tab-top">
+      <div class="card">
+        <div class="card-header"><span class="df" style="font-size:15px;font-weight:700;">📦 Manage Items</span></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="field"><label>Item Name</label><input id="itemName" type="text" placeholder="e.g. Coke 1.5L" class="inp" autocomplete="off"></div>
+            <div class="field"><label>Initial Stock</label><input id="itemQty" type="number" placeholder="e.g. 24" class="inp" inputmode="numeric"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="field"><label>👤 Staff Price (₱)</label><input id="itemStaffPrice" type="number" placeholder="0.00" class="inp" inputmode="decimal"></div>
+            <div class="field"><label>🛒 Customer Price (₱)</label><input id="itemCustPrice" type="number" placeholder="0.00" class="inp" inputmode="decimal"></div>
+          </div>
+          <button onclick="addItem()" class="btn-primary">＋ Add Item</button>
+        </div>
+      </div>
+    </div>
+    <div class="tab-scroll">
+      <div class="section-title">Items (<span id="itemCount">0</span>)</div>
+      <div class="card"><div id="itemList"></div></div>
+    </div>
+  </div>
+
+  <!-- PANEL: Daily Log (staff input) -->
+  <div id="sp-log" class="tab-section" style="flex-direction:column;">
+    <div class="tab-top" style="flex:1;overflow-y:auto;">
+      <div class="card">
+        <div class="card-header"><span class="df" style="font-size:15px;font-weight:700;">🛒 Record Sales</span></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;">
+            <div class="field"><label>Date</label><input id="logDate" type="date" class="inp"></div>
+            <div class="field"><label>Logged by</label><select id="logStaff" class="inp"></select></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+            <div class="field"><label>Item</label><select id="logItem" class="inp" onchange="updateLogPrice()"></select></div>
+            <div class="field"><label>Received</label><input id="logReceived" type="number" placeholder="0" class="inp" inputmode="numeric"></div>
+            <div class="field"><label>Sold</label><input id="logSold" type="number" placeholder="0" class="inp" inputmode="numeric"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;">
+            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px;">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#dc2626;margin-bottom:6px;">👤 Staff Credit</div>
+              <div class="field" style="margin-bottom:6px;"><label style="font-size:10px;">Staff Member</label><select id="logCreditStaff" class="inp" style="font-size:14px;padding:9px 10px;"><option value="">None</option></select></div>
+              <div class="field" style="margin-bottom:0;"><label style="font-size:10px;">Qty</label><input id="logCreditQty" type="number" placeholder="0" class="inp" style="font-size:14px;padding:9px 10px;" inputmode="numeric" oninput="updateCreditAmt()"></div>
+              <div id="creditAmtPreview" style="font-size:11px;color:#dc2626;margin-top:4px;display:none;"></div>
+            </div>
+            <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:10px;">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#15803d;margin-bottom:6px;">🛒 Sold to Customer</div>
+              <div style="font-size:11px;color:#6b7280;margin-bottom:8px;">Cash sale — no credit</div>
+              <div class="field" style="margin-bottom:0;"><label style="font-size:10px;">Qty Sold</label><input id="logCustSoldQty" type="number" placeholder="0" class="inp" style="font-size:14px;padding:9px 10px;" inputmode="numeric" oninput="updateCustSoldPreview()"></div>
+              <div id="custSoldPreview" style="font-size:11px;color:#15803d;margin-top:4px;display:none;"></div>
+            </div>
+          </div>
+          <button onclick="addLogEntry()" class="btn-primary btn-red" style="margin-top:8px;">✔ Sold</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL: Staff Credits -->
+  <div id="sp-credits" class="tab-section" style="flex-direction:column;">
+    <div class="tab-top">
+      <div class="card">
+        <div class="card-header"><span class="df" style="font-size:15px;font-weight:700;">💳 Staff Store Credits</span></div>
+        <div class="card-body">
+          <div class="field">
+            <label>Filter by Staff</label>
+            <select id="creditFilterStaff" class="inp" onchange="renderStoreCredits()">
+              <option value="">— All Staff —</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-scroll">
+      <div id="storeCreditSummaryCards" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;"></div>
+      <div class="section-title">Credit History</div>
+      <div class="card"><div id="storeCreditList"></div></div>
+    </div>
+  </div>
+
+  <!-- PANEL: Summary -->
+  <div id="sp-summary" class="tab-section active" style="flex-direction:column;">
+    <div class="tab-top">
+      <div class="card">
+        <div class="card-header"><span class="df" style="font-size:15px;font-weight:700;">📊 Store Summary</span></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="field"><label>From</label><input id="storeFrom" type="date" class="inp" onchange="renderStoreSummary()"></div>
+            <div class="field"><label>To</label><input id="storeTo" type="date" class="inp" onchange="renderStoreSummary()"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-scroll"><div id="storeSummaryContent"></div></div>
+  </div>
+
+</div>
+
+<!-- DETAILS TAB -->
+<div id="tab-details" class="tab-section">
+  <div class="tab-top">
+    <div class="card">
+      <div class="card-header"><span class="df" style="font-size:16px;font-weight:700;">🔍 Staff Detail View</span></div>
+      <div class="card-body">
+        <div class="field"><label>Staff Member</label><select id="detStaff" class="inp" onchange="renderDetails()"></select></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="field"><label>From</label><input id="detFrom" type="date" class="inp" onchange="renderDetails()"></div>
+          <div class="field"><label>To</label><input id="detTo" type="date" class="inp" onchange="renderDetails()"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Desktop only: Pay Computation shows here under the form -->
+    <div id="detPayComp" class="det-pay-comp-desktop"></div>
+  </div>
+  <div class="tab-scroll"><div id="detContent"></div></div>
+</div>
+
+<!-- REPORTS TAB -->
+<div id="tab-reports" class="tab-section">
+  <div class="tab-top">
+    <div class="card">
+      <div class="card-header"><span class="df" style="font-size:16px;font-weight:700;">📊 Report Period</span></div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div class="field"><label>From</label><input id="repFrom" type="date" class="inp" onchange="renderReports()"></div>
+          <div class="field"><label>To</label><input id="repTo" type="date" class="inp" onchange="renderReports()"></div>
+        </div>
+        <button onclick="exportExcel()" class="btn-primary btn-red">📥 Export to Excel</button>
+      </div>
+    </div>
+  </div>
+  <div class="tab-scroll">
+    <div id="repTotals" class="summary-strip three" style="margin-bottom:10px;"></div>
+    <div class="section-title">Breakdown by Staff</div>
+    <div id="repCards"></div>
+    <div style="font-size:11px;color:#9ca3af;text-align:center;padding:8px 0 4px;">P = Present · ½ = Half Day · A = Absent</div>
+  </div>
+</div>
+
+</div><!-- end appBody -->
+
+<!-- BOTTOM NAV -->
+<nav id="bottomNav">
+  <button data-tab="staff" class="active"><span class="nav-icon">👥</span>Staff</button>
+  <button data-tab="attendance"><span class="nav-icon">📅</span>Attend.</button>
+  <button data-tab="tips"><span class="nav-icon">💰</span>Tips</button>
+  <button data-tab="deductions"><span class="nav-icon">💸</span>Deduct.</button>
+  <button data-tab="store"><span class="nav-icon">🏪</span>Store</button>
+  <button data-tab="details"><span class="nav-icon">🔍</span>Details</button>
+  <button data-tab="reports"><span class="nav-icon">📊</span>Reports</button>
+</nav>
+
+</div><!-- end appWrapper -->
+
+
+<script>
+// ===== STATE =====
+let staff = JSON.parse(localStorage.getItem('staff') || 'null') || [
+  { id: 1, name: 'Kevin John Alib', position: 'Staff', dailyRate: 450 },
+  { id: 2, name: 'Mark Angelo Salamanca', position: 'Staff', dailyRate: 450 },
+  { id: 3, name: 'Julius Palmes', position: 'Staff', dailyRate: 450 },
+  { id: 4, name: 'Frank Bautista Clifford', position: 'Staff', dailyRate: 450 },
+  { id: 5, name: 'Joshua Duaya', position: 'Staff', dailyRate: 450 },
+];
+staff.forEach(s => { if (!s.dailyRate || s.dailyRate === 0) s.dailyRate = 450; });
+
+let attendance   = JSON.parse(localStorage.getItem('attendance')    || '[]');
+let tipPools     = JSON.parse(localStorage.getItem('tipPools')      || '[]');
+let cashAdvances = JSON.parse(localStorage.getItem('cashAdvances')  || '[]');
+let sssDeductions= JSON.parse(localStorage.getItem('sssDeductions') || '[]');
+let storeCredits = JSON.parse(localStorage.getItem('storeCredits')  || '[]');
+let storeItems   = JSON.parse(localStorage.getItem('storeItems')    || '[]');
+let storeLogs    = JSON.parse(localStorage.getItem('storeLogs')     || '[]'); // pending + approved daily logs
+// storeLogs entry: { id, date, staffId, entries:[{itemId,received,sold,creditStaffId,creditQty,creditAmt}], status:'pending'|'approved'|'rejected', submittedAt }
+
+// ===== SUPABASE CONFIG =====
+const SUPA_URL = 'https://xeluvdciwlwmslwlskjl.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlbHV2ZGNpd2x3bXNsd2xza2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzMzE1NDgsImV4cCI6MjA5MzkwNzU0OH0.OgRmZuAAaO7juS3ustfXL4xMSpPNFtGSKWRZfpbLrVo';
+const SUPA_HEADERS = { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' };
+
+const KEYS = ['staff','attendance','tipPools','cashAdvances','sssDeductions','storeCredits','storeItems','storeLogs'];
+
+let _lastUpdated = {}; // track last updated_at per key to detect changes
+let _pollInterval = null;
+let _isSaving = false;
+
+// ── Save single key to Supabase + localStorage ──
+async function saveKey(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    const val = JSON.stringify(value);
+    const ts  = new Date().toISOString();
+    // Try PATCH first (update existing row)
+    const patch = await fetch(`${SUPA_URL}/rest/v1/bzone_data?key=eq.${encodeURIComponent(key)}`, {
+      method: 'PATCH',
+      headers: { ...SUPA_HEADERS, 'Prefer': 'return=representation' },
+      body: JSON.stringify({ value: val, updated_at: ts })
+    });
+    const patchData = await patch.json();
+    // If no rows were updated, INSERT new row (without id — let Supabase auto-assign)
+    if (!Array.isArray(patchData) || patchData.length === 0) {
+      await fetch(`${SUPA_URL}/rest/v1/bzone_data`, {
+        method: 'POST',
+        headers: { ...SUPA_HEADERS, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ key, value: val, updated_at: ts })
+      });
+    }
+    showSyncIndicator(true);
+  } catch(e) {
+    showSyncIndicator(false);
+    console.warn('Supabase save failed:', key, e);
+  }
+}
+
+// ── Save all state ──
+function save() {
+  _isSaving = true;
+  const state = { staff, attendance, tipPools, cashAdvances, sssDeductions, storeCredits, storeItems, storeLogs };
+  Promise.all(KEYS.map(k => saveKey(k, state[k]))).then(() => { _isSaving = false; });
+}
+
+// ── Apply cloud data to state and re-render ──
+function applyCloudData(map, rerender = true) {
+  let changed = false;
+  const parse = (k) => { try { return JSON.parse(map[k]); } catch(e) { return null; } };
+  if (map.staff)         { const v = parse('staff');         if (v) { staff         = v; v.forEach(s => { if (!s.dailyRate) s.dailyRate = 450; }); changed = true; } }
+  if (map.attendance)    { const v = parse('attendance');    if (v) { attendance    = v; changed = true; } }
+  if (map.tipPools)      { const v = parse('tipPools');      if (v) { tipPools      = v; changed = true; } }
+  if (map.cashAdvances)  { const v = parse('cashAdvances');  if (v) { cashAdvances  = v; changed = true; } }
+  if (map.sssDeductions) { const v = parse('sssDeductions'); if (v) { sssDeductions = v; changed = true; } }
+  if (map.storeCredits)  { const v = parse('storeCredits');  if (v) { storeCredits  = v; changed = true; } }
+  if (map.storeItems)    { const v = parse('storeItems');    if (v) { storeItems    = v; changed = true; } }
+  if (map.storeLogs)     { const v = parse('storeLogs');     if (v) { storeLogs     = v; changed = true; } }
+  KEYS.forEach(k => { if (map[k]) localStorage.setItem(k, map[k]); });
+  if (changed && rerender) {
+    renderStaff(); renderAllSelects(); renderAttendance(); renderTips(); renderDeductions();
+    renderStoreItems(); renderLogItemSelect(); renderStoreLog(); renderStoreSummary(); renderStoreCredits();
+  }
+  return changed;
+}
+
+// ── Test Supabase connection and permissions ──
+async function testSupabaseConnection() {
+  try {
+    // Test write
+    const r = await fetch(`${SUPA_URL}/rest/v1/bzone_data`, {
+      method: 'POST',
+      headers: { ...SUPA_HEADERS },
+      body: JSON.stringify({ key: '_test', value: 'ok', updated_at: new Date().toISOString() })
+    });
+    const text = await r.text();
+    console.log('Supabase write test:', r.status, text);
+    if (r.status === 201 || r.status === 200 || r.status === 204) {
+      showSyncStatus('☁️ Cloud connected!', 2000);
+      showSyncIndicator(true);
+      // Clean up test row
+      fetch(`${SUPA_URL}/rest/v1/bzone_data?key=eq._test`, { method: 'DELETE', headers: SUPA_HEADERS });
+    } else {
+      showSyncStatus('⚠️ Cloud write blocked — check RLS settings in Supabase', 6000);
+      console.error('Supabase write failed:', r.status, text);
+      showSyncIndicator(false);
+    }
+  } catch(e) {
+    showSyncStatus('⚠️ Cannot reach cloud', 3000);
+    showSyncIndicator(false);
+  }
+}
+
+// ── Initial full load from cloud ──
+async function loadFromCloud() {
+  showSyncStatus('⏳ Connecting to cloud...');
+  try {
+    const res  = await fetch(`${SUPA_URL}/rest/v1/bzone_data?select=key,value,updated_at`, { headers: SUPA_HEADERS });
+    const rows = await res.json();
+    if (Array.isArray(rows) && rows.length > 0) {
+      const map = {};
+      rows.forEach(r => { map[r.key] = r.value; _lastUpdated[r.key] = r.updated_at; });
+      applyCloudData(map, true);
+      showSyncStatus('✅ Synced!', 2000);
+      startPolling(); // begin auto-sync after load
+    } else {
+      showSyncStatus('📱 No cloud data yet. Use ☁️ PUSH to upload your data.', 5000);
+      startPolling();
+    }
+  } catch(e) {
+    showSyncStatus('⚠️ Offline — using local data', 3000);
+    console.warn('Cloud load failed:', e);
+    startPolling(); // still poll in case connection recovers
+  }
+}
+
+// ── Poll Supabase every 10 seconds for changes ──
+function startPolling() {
+  if (_pollInterval) clearInterval(_pollInterval);
+  _pollInterval = setInterval(pollForChanges, 10000);
+}
+
+async function pollForChanges() {
+  if (_isSaving) return; // don't poll while saving to avoid overwriting
+  try {
+    const res  = await fetch(`${SUPA_URL}/rest/v1/bzone_data?select=key,value,updated_at`, { headers: SUPA_HEADERS });
+    const rows = await res.json();
+    if (!Array.isArray(rows)) return;
+
+    // Check if any key has been updated since last check
+    let hasNew = false;
+    const map  = {};
+    rows.forEach(r => {
+      map[r.key] = r.value;
+      if (r.updated_at !== _lastUpdated[r.key]) { hasNew = true; _lastUpdated[r.key] = r.updated_at; }
+    });
+
+    if (hasNew) {
+      applyCloudData(map, true);
+      showSyncStatus('🔄 Updated!', 1500);
+    }
+
+    // Update sync indicator to green (online)
+    showSyncIndicator(true);
+  } catch(e) {
+    showSyncIndicator(false);
+  }
+}
+
+// ── One-time push: upload all local data to cloud ──
+async function pushToCloud() {
+  if (!confirm('Upload all your local data to the cloud? This will overwrite any existing cloud data.')) return;
+  showSyncStatus('⬆️ Uploading to cloud...');
+  const state = { staff, attendance, tipPools, cashAdvances, sssDeductions, storeCredits, storeItems, storeLogs };
+  let ok = 0;
+  for (const k of KEYS) {
+    try {
+      const val = JSON.stringify(state[k]);
+      const ts  = new Date().toISOString();
+      // Try PATCH first
+      const patch = await fetch(`${SUPA_URL}/rest/v1/bzone_data?key=eq.${encodeURIComponent(k)}`, {
+        method: 'PATCH',
+        headers: { ...SUPA_HEADERS, 'Prefer': 'return=representation' },
+        body: JSON.stringify({ value: val, updated_at: ts })
+      });
+      const patchData = await patch.json();
+      // If no rows updated, INSERT
+      if (!Array.isArray(patchData) || patchData.length === 0) {
+        const ins = await fetch(`${SUPA_URL}/rest/v1/bzone_data`, {
+          method: 'POST',
+          headers: { ...SUPA_HEADERS, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ key: k, value: val, updated_at: ts })
+        });
+        if (ins.ok || ins.status === 201) ok++;
+      } else {
+        ok++;
+      }
+    } catch(e) { console.warn('Failed to push', k, e); }
+  }
+  if (ok === KEYS.length) {
+    showSyncStatus('✅ All data pushed! All devices will now sync.', 4000);
+  } else {
+    showSyncStatus(`⚠️ Pushed ${ok}/${KEYS.length} — check connection.`, 4000);
+  }
+}
+
+// ── Sync status toast ──
+function showSyncStatus(msg, duration) {
+  let el = document.getElementById('syncStatus');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'syncStatus';
+    el.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:8px 18px;border-radius:99px;font-size:13px;font-weight:600;z-index:9998;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.3);border:1px solid #dc2626;transition:opacity .3s;';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  if (duration) setTimeout(() => { el.style.opacity = '0'; }, duration);
+}
+
+// ── Small cloud dot indicator in header ──
+function showSyncIndicator(online) {
+  let dot = document.getElementById('syncDot');
+  if (!dot) {
+    dot = document.createElement('div');
+    dot.id = 'syncDot';
+    dot.title = 'Cloud sync status';
+    dot.style.cssText = 'width:8px;height:8px;border-radius:50%;position:absolute;top:8px;right:8px;';
+    const pushBtn = document.getElementById('pushCloudBtn');
+    if (pushBtn) { pushBtn.style.position = 'relative'; pushBtn.appendChild(dot); }
+  }
+  dot.style.background = online ? '#22c55e' : '#ef4444';
+}
+
+const peso = n => '₱' + (n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const todayISO = () => new Date().toISOString().split('T')[0];
+const fmtDate  = d => new Date(d+'T00:00').toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+const getStaffName = id => (staff.find(x=>x.id===id)||{name:'Unknown'}).name;
+
+// ===== Initial setup =====
+document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+document.getElementById('attDate').value = todayISO();
+document.getElementById('tipDate').value = todayISO();
+document.getElementById('caDate').value  = todayISO();
+document.getElementById('sssDate').value = todayISO();
+const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+document.getElementById('repFrom').value = firstOfMonth;
+document.getElementById('repTo').value   = todayISO();
+document.getElementById('detFrom').value = firstOfMonth;
+document.getElementById('detTo').value   = todayISO();
+
+document.getElementById('logDate').value   = todayISO();
+document.getElementById('storeFrom').value = firstOfMonth;
+document.getElementById('storeTo').value   = todayISO();
+
+// ===== Bottom Nav =====
+document.querySelectorAll('#bottomNav button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#bottomNav button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'reports')    renderReports();
+    if (btn.dataset.tab === 'tips')       renderTips();
+    if (btn.dataset.tab === 'deductions') renderDeductions();
+    if (btn.dataset.tab === 'details')    renderDetails();
+    if (btn.dataset.tab === 'store') {
+      if (window._storeCreditsOnly) {
+        switchStore('credits');
+        // Hide Items, Sold, Summary sub-tabs for viewers
+        ['ssnItems','ssnLog','ssnSummary'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.style.display = 'none';
+        });
+      } else {
+        switchStore('summary');
+      }
+    }
+  });
+});
+
+// ===== STAFF =====
+function addStaff() {
+  const name = document.getElementById('newStaffName').value.trim();
+  const position = document.getElementById('newStaffPos').value.trim() || 'Staff';
+  const dailyRate = parseFloat(document.getElementById('newStaffRate').value) || 0;
+  if (!name) { alert('Enter a name'); return; }
+  staff.push({ id: Date.now(), name, position, dailyRate });
+  document.getElementById('newStaffName').value = '';
+  document.getElementById('newStaffPos').value  = '';
+  document.getElementById('newStaffRate').value = '';
+  save(); renderStaff(); renderAllSelects();
+}
+
+function removeStaff(id) {
+  if (!confirm('Remove staff? All their records will also be deleted.')) return;
+  staff         = staff.filter(s => s.id !== id);
+  attendance    = attendance.filter(a => a.staffId !== id);
+  cashAdvances  = cashAdvances.filter(c => c.staffId !== id);
+  sssDeductions = sssDeductions.filter(d => d.staffId !== id);
+  storeCredits  = storeCredits.filter(s => s.staffId !== id);
+  save(); renderStaff(); renderAllSelects(); renderAttendance(); renderTips(); renderDeductions();
+}
+
+function editRate(id) {
+  const s = staff.find(x => x.id === id);
+  const v = prompt('Daily rate for ' + s.name + ':', s.dailyRate);
+  if (v === null) return;
+  const n = parseFloat(v);
+  if (isNaN(n) || n < 0) { alert('Invalid'); return; }
+  s.dailyRate = n;
+  save(); renderStaff();
+}
+
+function editName(id) {
+  const s = staff.find(x => x.id === id);
+  const v = prompt('Edit name:', s.name);
+  if (!v || !v.trim()) return;
+  s.name = v.trim();
+  save(); renderStaff(); renderAllSelects(); renderAttendance(); renderTips();
+}
+
+function renderStaff() {
+  document.getElementById('staffCount').textContent = staff.length;
+  const list = document.getElementById('staffList');
+  if (!staff.length) {
+    list.innerHTML = '<div style="padding:32px;text-align:center;color:#9ca3af;">No staff yet. Add your first member above.</div>';
+    return;
+  }
+  list.innerHTML = staff.map(s => `
+    <div class="row">
+      <div class="row-left" style="display:flex; gap:12px; align-items:center;">
+        <div class="avatar">${s.name.charAt(0).toUpperCase()}</div>
+        <div>
+          <div style="font-weight:600; color:#111; font-size:15px;">${s.name}</div>
+          <div style="font-size:13px; color:#6b7280;">${s.position}</div>
+          <div class="df" style="font-size:14px; font-weight:700; color:#dc2626; margin-top:2px;">${peso(s.dailyRate)}/day</div>
+        </div>
+      </div>
+      <div class="row-right" style="flex-direction:column; gap:6px; align-items:flex-end;">
+        <button class="mini-btn" onclick="editName(${s.id})">✏️ Name</button>
+        <button class="mini-btn" onclick="editRate(${s.id})">💰 Rate</button>
+        <button class="del-btn" onclick="removeStaff(${s.id})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+// ===== SELECTS =====
+function renderAllSelects() {
+  const opts = '<option value="">— Select staff —</option>' + staff.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  ['attStaff','caStaff','sssStaff'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = opts;
+  });
+  // Log staff selects
+  const ls = document.getElementById('logStaff');
+  if (ls) ls.innerHTML = opts;
+  const lcs = document.getElementById('logCreditStaff');
+  if (lcs) lcs.innerHTML = '<option value="">None</option>' + staff.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  const det = document.getElementById('detStaff');
+  if (det) {
+    const prev = det.value;
+    det.innerHTML = staff.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    if (prev && staff.find(s => s.id === parseInt(prev))) det.value = prev;
+    else if (staff.length) det.value = staff[0].id;
+  }
+}
+
+// ===== ATTENDANCE =====
+function addAttendance() {
+  const staffId = parseInt(document.getElementById('attStaff').value);
+  const date    = document.getElementById('attDate').value;
+  const status  = document.getElementById('attStatus').value;
+  if (!staffId || !date) { alert('Select staff and date'); return; }
+  if (attendance.find(a => a.staffId === staffId && a.date === date)) {
+    alert('Already logged for this date.'); return;
+  }
+  attendance.push({ id: Date.now(), staffId, date, status });
+  document.getElementById('attStaff').value = '';
+  save(); renderAttendance(); renderTips();
+}
+
+function removeAttendance(id) {
+  attendance = attendance.filter(a => a.id !== id);
+  save(); renderAttendance(); renderTips();
+}
+
+function renderAttendance() {
+  document.getElementById('attCount').textContent = attendance.length;
+  const list = document.getElementById('attList');
+  if (!attendance.length) {
+    list.innerHTML = '<div style="padding:32px;text-align:center;color:#9ca3af;">No attendance logged yet.</div>';
+    return;
+  }
+
+  // Group by date
+  const byDate = {};
+  attendance.forEach(a => {
+    if (!byDate[a.date]) byDate[a.date] = [];
+    byDate[a.date].push(a);
+  });
+
+  // Sort dates descending
+  const sortedDates = Object.keys(byDate).sort((a,b) => b.localeCompare(a));
+
+  list.innerHTML = sortedDates.map(date => {
+    const entries = byDate[date];
+    const present = entries.filter(a => a.status === 'present').length;
+    const half    = entries.filter(a => a.status === 'half').length;
+    const absent  = entries.filter(a => a.status === 'absent').length;
+
+    const rows = entries
+      .sort((a,b) => getStaffName(a.staffId).localeCompare(getStaffName(b.staffId)))
+      .map(a => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border-bottom:1px solid #f9f9f9;">
+          <div style="font-size:14px;font-weight:600;color:#111;">${getStaffName(a.staffId)}</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="badge badge-${a.status}">${a.status==='present'?'✅ Present':a.status==='half'?'🕐 Half':'❌ Absent'}</span>
+            <button class="del-btn" onclick="removeAttendance(${a.id})">✕</button>
+          </div>
+        </div>`).join('');
+
+    return `
+      <div class="card" style="margin-bottom:10px;">
+        <div style="padding:10px 16px;background:#000;display:flex;align-items:center;justify-content:space-between;">
+          <span class="df" style="font-size:15px;font-weight:700;color:#fff;">${fmtDate(date)}</span>
+          <div style="display:flex;gap:8px;">
+            ${present>0?`<span style="font-size:12px;background:#ecfdf5;color:#047857;border-radius:99px;padding:2px 10px;font-weight:700;">✅ ${present}</span>`:''}
+            ${half>0?`<span style="font-size:12px;background:#fffbeb;color:#b45309;border-radius:99px;padding:2px 10px;font-weight:700;">🕐 ${half}</span>`:''}
+            ${absent>0?`<span style="font-size:12px;background:#fef2f2;color:#dc2626;border-radius:99px;padding:2px 10px;font-weight:700;">❌ ${absent}</span>`:''}
+          </div>
+        </div>
+        ${rows}
+      </div>`;
+  }).join('');
+}
+
+// ===== TIPS =====
+function calcTipsForDate(date) {
+  const pool = tipPools.find(p => p.date === date);
+  if (!pool) return { perStaff:{}, totalShares:0, sharePerUnit:0 };
+  const dayAtt = attendance.filter(a => a.date === date);
+  let totalShares = 0;
+  const sps = {};
+  dayAtt.forEach(a => {
+    const sh = a.status==='present'?1:a.status==='half'?0.5:0;
+    if (sh>0) { sps[a.staffId]=sh; totalShares+=sh; }
+  });
+  const sharePerUnit = totalShares>0 ? pool.totalAmount/totalShares : 0;
+  const perStaff = {};
+  Object.entries(sps).forEach(([id,sh]) => { perStaff[id]=sh*sharePerUnit; });
+  return { perStaff, totalShares, sharePerUnit };
+}
+
+function accumulatedTipsFor(staffId, from, to) {
+  let total = 0;
+  tipPools.filter(p => (!from||p.date>=from)&&(!to||p.date<=to)).forEach(p => {
+    const { perStaff } = calcTipsForDate(p.date);
+    if (perStaff[staffId]) total += perStaff[staffId];
+  });
+  return total;
+}
+
+function updateTipPreview() {
+  const date   = document.getElementById('tipDate').value;
+  const amount = parseFloat(document.getElementById('tipAmount').value) || 0;
+  const div    = document.getElementById('tipPreview');
+  if (!date || !amount) { div.innerHTML=''; return; }
+  const dayAtt = attendance.filter(a => a.date===date);
+  const pc = dayAtt.filter(a=>a.status==='present').length;
+  const hc = dayAtt.filter(a=>a.status==='half').length;
+  const ts = pc + hc*0.5;
+  if (!ts) {
+    div.innerHTML = '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;font-size:13px;color:#b91c1c;">⚠️ No one is Present on this date yet. Log attendance first.</div>';
+    return;
+  }
+  const ps = amount/ts;
+  div.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;font-size:13px;color:#7f1d1d;">
+    <strong>Preview:</strong> ${pc} full + ${hc} half = ${ts} shares<br>
+    Full share: <strong>${peso(ps)}</strong> · Half share: <strong>${peso(ps/2)}</strong>
+  </div>`;
+}
+
+function addTipPool() {
+  if (window._tipViewOnly) { alert('You do not have permission to encode tips.'); return; }
+  const date   = document.getElementById('tipDate').value;
+  const amount = parseFloat(document.getElementById('tipAmount').value);
+  if (!date||!amount||amount<=0) { alert('Enter date and amount'); return; }
+  const existing = tipPools.find(p => p.date===date);
+  if (existing) {
+    if (!confirm('Replace tip pool for this date?')) return;
+    existing.totalAmount = amount;
+  } else {
+    tipPools.push({ id:Date.now(), date, totalAmount:amount });
+  }
+  document.getElementById('tipAmount').value = '';
+  document.getElementById('tipPreview').innerHTML = '';
+  save(); renderTips();
+}
+
+function removeTipPool(id) {
+  if (window._staffCannotDelete) { alert('You do not have permission to remove tip entries.'); return; }
+  if (!confirm('Remove this tip pool?')) return;
+  tipPools = tipPools.filter(p => p.id!==id);
+  save(); renderTips();
+}
+
+function renderTips() {
+  // Apply role restrictions to tip form
+  const tipTop = document.querySelector('#tab-tips .tab-top');
+  if (tipTop) {
+    if (window._tipViewOnly) {
+      tipTop.style.display = 'none';
+    } else {
+      tipTop.style.display = '';
+      if (window._lockTipDate) {
+        const tipDateInp = document.getElementById('tipDate');
+        if (tipDateInp) {
+          tipDateInp.value = todayISO();
+          tipDateInp.readOnly = true;
+          tipDateInp.style.background = '#f3f4f6';
+          tipDateInp.style.color = '#6b7280';
+          tipDateInp.style.cursor = 'not-allowed';
+        }
+      }
+    }
+  }
+
+  // Accumulated cards
+  const acc = document.getElementById('tipAccumulated');
+  acc.innerHTML = staff.map(s => {
+    const total = accumulatedTipsFor(s.id);
+    return `<div style="background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.07);">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;">${s.name.split(' ')[0]}</div>
+      <div class="df" style="font-size:20px;font-weight:700;color:#111;margin-top:2px;">${peso(total)}</div>
+    </div>`;
+  }).join('');
+
+  // Pool list
+  document.getElementById('poolCount').textContent = tipPools.length;
+  const list = document.getElementById('poolList');
+  if (!tipPools.length) {
+    list.innerHTML = '<div style="padding:32px;text-align:center;color:#9ca3af;">No tip pools recorded yet.</div>';
+    return;
+  }
+  list.innerHTML = [...tipPools].sort((a,b)=>b.date.localeCompare(a.date)).map(p => {
+    const { perStaff, totalShares, sharePerUnit } = calcTipsForDate(p.date);
+    const dayAtt = attendance.filter(a=>a.date===p.date);
+    const split = dayAtt.length
+      ? dayAtt.map(a => {
+          const tip = perStaff[a.staffId]||0;
+          return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;">
+            <span style="font-size:14px;color:#374151;">${getStaffName(a.staffId)} <span style="font-size:11px;color:#9ca3af;">(${a.status})</span></span>
+            <span class="df" style="font-size:14px;font-weight:700;color:${tip>0?'#047857':'#9ca3af'};">${peso(tip)}</span>
+          </div>`;
+        }).join('')
+      : '<div style="font-size:13px;color:#9ca3af;padding:6px 0;">No attendance on this date</div>';
+    return `<div style="padding:14px 16px;border-bottom:1px solid #f5f5f5;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div>
+          <div style="font-weight:700;font-size:15px;color:#111;">${fmtDate(p.date)}</div>
+          <div style="font-size:12px;color:#6b7280;">${totalShares} share${totalShares!==1?'s':''} · ${peso(sharePerUnit)}/share</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="df" style="font-size:20px;font-weight:700;color:#dc2626;">${peso(p.totalAmount)}</div>
+          ${!window._staffCannotDelete ? `<button class="del-btn" onclick="removeTipPool(${p.id})">✕</button>` : ''}
+        </div>
+      </div>
+      <div style="background:#f9fafb;border-radius:8px;padding:8px 10px;">${split}</div>
+    </div>`;
+  }).join('');
+}
+
+// ===== DEDUCTIONS =====
+function cashAdvanceFor(staffId, from, to) {
+  return cashAdvances.filter(c=>c.staffId===staffId&&(!from||c.date>=from)&&(!to||c.date<=to))
+    .reduce((s,c)=>s+c.amount,0);
+}
+function sssFor(staffId, from, to) {
+  return sssDeductions.filter(d=>d.staffId===staffId&&(!from||d.date>=from)&&(!to||d.date<=to))
+    .reduce((s,d)=>s+d.amount,0);
+}
+
+function addCashAdvance() {
+  const staffId = parseInt(document.getElementById('caStaff').value);
+  const date    = document.getElementById('caDate').value;
+  const amount  = parseFloat(document.getElementById('caAmount').value);
+  const note    = document.getElementById('caNote').value.trim();
+  if (!staffId||!date||!amount||amount<=0) { alert('Fill in all fields'); return; }
+  cashAdvances.push({ id:Date.now(), staffId, date, amount, note });
+  document.getElementById('caStaff').value  = '';
+  document.getElementById('caAmount').value = '';
+  document.getElementById('caNote').value   = '';
+  save(); renderDeductions();
+}
+
+function removeCashAdvance(id) {
+  if (!confirm('Remove this cash advance?')) return;
+  cashAdvances = cashAdvances.filter(c=>c.id!==id);
+  save(); renderDeductions();
+}
+
+function addSSS() {
+  const staffId = parseInt(document.getElementById('sssStaff').value);
+  const date    = document.getElementById('sssDate').value;
+  const amount  = parseFloat(document.getElementById('sssAmount').value);
+  const note    = document.getElementById('sssNote').value.trim();
+  if (!staffId||!date||!amount||amount<=0) { alert('Fill in all fields'); return; }
+  sssDeductions.push({ id:Date.now(), staffId, date, amount, note });
+  document.getElementById('sssStaff').value  = '';
+  document.getElementById('sssAmount').value = '350';
+  document.getElementById('sssNote').value   = '';
+  save(); renderDeductions();
+}
+
+function removeSSS(id) {
+  if (!confirm('Remove this SSS record?')) return;
+  sssDeductions = sssDeductions.filter(d=>d.id!==id);
+  save(); renderDeductions();
+}
+
+function deductRow(item, removeFn) {
+  return `<div class="row">
+    <div class="row-left">
+      <div style="font-weight:600;color:#111;font-size:15px;">${getStaffName(item.staffId)}</div>
+      <div style="font-size:13px;color:#6b7280;">${fmtDate(item.date)}${item.note?' · '+item.note:''}</div>
+    </div>
+    <div class="row-right">
+      <div class="df" style="font-size:16px;font-weight:700;color:#dc2626;">- ${peso(item.amount)}</div>
+      <button class="del-btn" onclick="${removeFn}(${item.id})">✕</button>
+    </div>
+  </div>`;
+}
+
+function renderDeductions() {
+  document.getElementById('caCount').textContent  = cashAdvances.length;
+  document.getElementById('sssCount').textContent = sssDeductions.length;
+  const caList  = document.getElementById('caList');
+  const sssList = document.getElementById('sssList');
+  caList.innerHTML  = cashAdvances.length
+    ? [...cashAdvances].sort((a,b)=>b.date.localeCompare(a.date)).map(c=>deductRow(c,'removeCashAdvance')).join('')
+    : '<div style="padding:28px;text-align:center;color:#9ca3af;">No cash advances yet.</div>';
+  sssList.innerHTML = sssDeductions.length
+    ? [...sssDeductions].sort((a,b)=>b.date.localeCompare(a.date)).map(d=>deductRow(d,'removeSSS')).join('')
+    : '<div style="padding:28px;text-align:center;color:#9ca3af;">No SSS deductions yet.</div>';
+}
+
+// ===== DEDUCTIONS sub-nav (mobile) =====
+function switchDeduct(panel) {
+  ['ca','sss'].forEach(p => {
+    document.getElementById('dp-'+p).classList.toggle('active', p === panel);
+  });
+  document.querySelectorAll('#deductSubNav button').forEach((btn, i) => {
+    btn.classList.toggle('active', ['ca','sss'][i] === panel);
+  });
+}
+
+// ===== STORE CREDITS =====
+function storeCreditFor(staffId, from, to) {
+  return storeCredits
+    .filter(s => s.staffId === staffId && (!from || s.date >= from) && (!to || s.date <= to))
+    .reduce((sum, s) => sum + s.amount, 0);
+}
+
+// ===== DETAILS =====
+function renderDetails() {
+  const det     = document.getElementById('detStaff');
+  const content = document.getElementById('detContent');
+  if (!staff.length) { content.innerHTML='<div class="card" style="padding:32px;text-align:center;color:#9ca3af;">Add staff first.</div>'; return; }
+  if (!det.value && staff.length) det.value = staff[0].id;
+  const staffId = parseInt(det.value);
+  const s       = staff.find(x=>x.id===staffId);
+  if (!s) return;
+  const from = document.getElementById('detFrom').value;
+  const to   = document.getElementById('detTo').value;
+
+  const att      = attendance.filter(a=>a.staffId===staffId&&a.date>=from&&a.date<=to).sort((a,b)=>a.date.localeCompare(b.date));
+  const myCash   = cashAdvances.filter(c=>c.staffId===staffId&&c.date>=from&&c.date<=to).sort((a,b)=>a.date.localeCompare(b.date));
+  const mySSS    = sssDeductions.filter(d=>d.staffId===staffId&&d.date>=from&&d.date<=to).sort((a,b)=>a.date.localeCompare(b.date));
+  const mySC     = storeCredits.filter(s=>s.staffId===staffId&&s.date>=from&&s.date<=to).sort((a,b)=>a.date.localeCompare(b.date));
+  const myTips   = [];
+  tipPools.filter(p=>p.date>=from&&p.date<=to).forEach(p=>{
+    const { perStaff } = calcTipsForDate(p.date);
+    if (perStaff[staffId]) {
+      const a = attendance.find(a=>a.staffId===staffId&&a.date===p.date);
+      myTips.push({ date:p.date, amount:perStaff[staffId], status:a?a.status:'-', poolTotal:p.totalAmount });
+    }
+  });
+  myTips.sort((a,b)=>a.date.localeCompare(b.date));
+
+  const present    = att.filter(a=>a.status==='present').length;
+  const half       = att.filter(a=>a.status==='half').length;
+  const absent     = att.filter(a=>a.status==='absent').length;
+  const salary     = present*s.dailyRate + half*s.dailyRate*0.5;
+  const totTips    = myTips.reduce((s,t)=>s+t.amount,0);
+  const totCash    = myCash.reduce((s,c)=>s+c.amount,0);
+  const totSSS     = mySSS.reduce((s,d)=>s+d.amount,0);
+  const totSC      = mySC.reduce((s,c)=>s+c.amount,0);
+  const gross      = salary + totTips;
+  const netPay     = gross - totCash - totSSS - totSC;
+
+  const payCompHTML = `
+    <div class="card card-body" style="padding:14px 16px;">
+      ${[
+        ['Salary',              peso(salary),          '#111'],
+        ['Tips',                peso(totTips),         '#111'],
+        ['Gross Pay',           peso(gross),           '#111', true],
+        ['Less: Cash Advances', '- '+peso(totCash),    '#dc2626'],
+        ['Less: SSS',           '- '+peso(totSSS),     '#dc2626'],
+        ['Less: Store Credits', '- '+peso(totSC),      '#dc2626'],
+      ].map(([label,val,color,bold])=>`
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5;">
+          <span style="font-size:14px;color:#374151;${bold?'font-weight:700;':''}">${label}</span>
+          <span class="df" style="font-size:15px;font-weight:${bold?'700':'600'};color:${color};">${val}</span>
+        </div>`).join('')}
+      <div style="display:flex;justify-content:space-between;padding:12px 0 4px;">
+        <span class="df" style="font-size:16px;font-weight:700;color:#111;">NET PAY</span>
+        <span class="df" style="font-size:20px;font-weight:700;color:#dc2626;">${peso(netPay)}</span>
+      </div>
+    </div>`;
+
+  const secHtml = (title, items, emptyMsg, renderRow) =>
+    `<div class="section-title">${title}</div>
+     <div class="card">${items.length ? items.map(renderRow).join('') : `<div style="padding:24px;text-align:center;color:#9ca3af;font-size:13px;">${emptyMsg}</div>`}</div>`;
+
+  content.innerHTML = `
+    <!-- Profile -->
+    <div style="background:#000;color:#fff;border-radius:12px;padding:16px;margin-bottom:12px;display:flex;gap:14px;align-items:center;">
+      <div class="avatar" style="width:52px;height:52px;font-size:22px;">${s.name.charAt(0)}</div>
+      <div>
+        <div class="df" style="font-size:20px;font-weight:700;">${s.name}</div>
+        <div style="font-size:13px;color:#9ca3af;">${s.position} · ${peso(s.dailyRate)}/day</div>
+        <div style="font-size:11px;color:#dc2626;margin-top:2px;font-weight:600;">${from} → ${to}</div>
+      </div>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="summary-strip" style="margin-bottom:12px;">
+      <div class="stat-card" style="background:#fff;border:1px solid #e5e7eb;">
+        <div style="font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Salary</div>
+        <div class="df" style="font-size:20px;font-weight:700;color:#111;">${peso(salary)}</div>
+        <div style="font-size:12px;color:#6b7280;">${present}P · ${half}½ · ${absent}A</div>
+      </div>
+      <div class="stat-card" style="background:#fff;border:1px solid #e5e7eb;">
+        <div style="font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Tips</div>
+        <div class="df" style="font-size:20px;font-weight:700;color:#111;">${peso(totTips)}</div>
+        <div style="font-size:12px;color:#6b7280;">${myTips.length} day${myTips.length!==1?'s':''}</div>
+      </div>
+      <div class="stat-card" style="background:#fff;border:2px solid #dc2626;">
+        <div style="font-size:11px;color:#dc2626;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Deductions</div>
+        <div class="df" style="font-size:20px;font-weight:700;color:#dc2626;">- ${peso(totCash+totSSS+totSC)}</div>
+        <div style="font-size:12px;color:#6b7280;">CA · SSS · Store</div>
+      </div>
+    </div>
+
+    <!-- Net Pay big banner -->
+    <div style="background:#dc2626;color:#fff;border-radius:12px;padding:16px 18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.7);">Net Pay (Take-home)</div>
+      <div class="df" style="font-size:28px;font-weight:700;">${peso(netPay)}</div>
+    </div>
+
+    <!-- Attendance -->
+    ${secHtml('Attendance Log', att, 'No records in this period.', a =>
+      `<div class="row">
+        <div style="font-size:14px;color:#374151;">${fmtDate(a.date)}</div>
+        <span class="badge badge-${a.status}">${a.status==='present'?'✅ Present':a.status==='half'?'🕐 Half':'❌ Absent'}</span>
+      </div>`)}
+
+    <!-- Tips -->
+    ${secHtml('Tips Received', myTips, 'No tips in this period.', t =>
+      `<div class="row">
+        <div class="row-left">
+          <div style="font-size:14px;color:#374151;">${fmtDate(t.date)}</div>
+          <div style="font-size:12px;color:#9ca3af;">Pool: ${peso(t.poolTotal)} · ${t.status==='half'?'half share':'full share'}</div>
+        </div>
+        <div class="df" style="font-size:16px;font-weight:700;color:#047857;">${peso(t.amount)}</div>
+      </div>`)}
+
+    <!-- Cash Advances -->
+    ${secHtml('Cash Advances', myCash, 'No cash advances in this period.', c =>
+      `<div class="row">
+        <div class="row-left">
+          <div style="font-size:14px;color:#374151;">${fmtDate(c.date)}</div>
+          ${c.note?`<div style="font-size:12px;color:#9ca3af;font-style:italic;">"${c.note}"</div>`:''}
+        </div>
+        <div class="df" style="font-size:16px;font-weight:700;color:#dc2626;">- ${peso(c.amount)}</div>
+      </div>`)}
+
+    <!-- SSS -->
+    ${secHtml('SSS Deductions', mySSS, 'No SSS deductions in this period.', d =>
+      `<div class="row">
+        <div class="row-left">
+          <div style="font-size:14px;color:#374151;">${fmtDate(d.date)}</div>
+          ${d.note?`<div style="font-size:12px;color:#9ca3af;font-style:italic;">"${d.note}"</div>`:''}
+        </div>
+        <div class="df" style="font-size:16px;font-weight:700;color:#dc2626;">- ${peso(d.amount)}</div>
+      </div>`)}
+
+    <!-- Store Credits -->
+    ${secHtml('🥤 Store Credits', mySC, 'No store credits in this period.', s =>
+      `<div class="row">
+        <div class="row-left">
+          <div style="font-size:14px;color:#374151;">${fmtDate(s.date)}</div>
+          ${s.note?`<div style="font-size:12px;color:#9ca3af;font-style:italic;">"${s.note}"</div>`:''}
+        </div>
+        <div class="df" style="font-size:16px;font-weight:700;color:#dc2626;">- ${peso(s.amount)}</div>
+      </div>`)}
+
+    <!-- Pay computation breakdown — mobile only (desktop shows in left panel) -->
+    <div class="det-pay-comp-mobile">
+      <div class="section-title">Pay Computation</div>
+      ${payCompHTML}
+    </div>`;
+
+  // Render pay computation in left panel (desktop) AND inline (mobile)
+  // CSS handles which one is visible
+  const desktopComp = document.getElementById('detPayComp');
+  if (desktopComp) {
+    desktopComp.innerHTML = `
+      <div class="section-title" style="margin-top:12px;">Pay Computation</div>
+      ${payCompHTML}`;
+  }
+}
+
+// ===== REPORTS =====
+function renderReports() {
+  const from = document.getElementById('repFrom').value;
+  const to   = document.getElementById('repTo').value;
+
+  const data = staff.map(s => {
+    const att    = attendance.filter(a=>a.staffId===s.id&&a.date>=from&&a.date<=to);
+    const present= att.filter(a=>a.status==='present').length;
+    const half   = att.filter(a=>a.status==='half').length;
+    const absent = att.filter(a=>a.status==='absent').length;
+    const salary = present*s.dailyRate + half*s.dailyRate*0.5;
+    const tips   = accumulatedTipsFor(s.id,from,to);
+    const cashAdv= cashAdvanceFor(s.id,from,to);
+    const sss    = sssFor(s.id,from,to);
+    const sc     = storeCreditFor(s.id,from,to);
+    const gross  = salary+tips;
+    const netPay = gross-cashAdv-sss-sc;
+    return { ...s, present,half,absent,salary,tips,gross,cashAdv,sss,sc,netPay };
+  });
+
+  const totGross   = data.reduce((a,b)=>a+b.gross,0);
+  const totDeduct  = data.reduce((a,b)=>a+b.cashAdv+b.sss+b.sc,0);
+  const totNet     = data.reduce((a,b)=>a+b.netPay,0);
+
+  // Summary strip
+  document.getElementById('repTotals').innerHTML = `
+    <div class="stat-card" style="background:#000;color:#fff;grid-column:span 3;">
+      <div style="font-size:10px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Gross Pay</div>
+      <div class="df" style="font-size:24px;font-weight:700;">${peso(totGross)}</div>
+    </div>
+    <div class="stat-card" style="background:#fff;border:2px solid #dc2626;">
+      <div style="font-size:10px;color:#dc2626;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Deductions</div>
+      <div class="df" style="font-size:20px;font-weight:700;color:#dc2626;">- ${peso(totDeduct)}</div>
+    </div>
+    <div class="stat-card" style="background:#dc2626;color:#fff;">
+      <div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Net Pay</div>
+      <div class="df" style="font-size:20px;font-weight:700;">${peso(totNet)}</div>
+    </div>`;
+
+  // Per-staff cards (mobile friendly — no wide table)
+  document.getElementById('repCards').innerHTML = data.map(r => `
+    <div class="card" style="margin-bottom:10px;">
+      <div style="padding:12px 16px;border-bottom:1px solid #f5f5f5;display:flex;align-items:center;gap:10px;">
+        <div class="avatar" style="width:36px;height:36px;font-size:16px;">${r.name.charAt(0)}</div>
+        <div>
+          <div style="font-weight:700;font-size:15px;color:#111;">${r.name}</div>
+          <div style="font-size:12px;color:#6b7280;">${r.position} · ${peso(r.dailyRate)}/day</div>
+        </div>
+      </div>
+      <div style="padding:10px 16px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;text-align:center;">
+          <div style="background:#ecfdf5;border-radius:8px;padding:6px;">
+            <div style="font-size:18px;font-weight:700;color:#047857;">${r.present}</div>
+            <div style="font-size:10px;color:#6b7280;font-weight:600;">PRESENT</div>
+          </div>
+          <div style="background:#fffbeb;border-radius:8px;padding:6px;">
+            <div style="font-size:18px;font-weight:700;color:#b45309;">${r.half}</div>
+            <div style="font-size:10px;color:#6b7280;font-weight:600;">HALF</div>
+          </div>
+          <div style="background:#f3f4f6;border-radius:8px;padding:6px;">
+            <div style="font-size:18px;font-weight:700;color:#6b7280;">${r.absent}</div>
+            <div style="font-size:10px;color:#6b7280;font-weight:600;">ABSENT</div>
+          </div>
+        </div>
+        ${[['Salary',peso(r.salary)],['Tips',peso(r.tips)],['Gross',peso(r.gross),true],
+           ['Cash Adv.',r.cashAdv>0?'- '+peso(r.cashAdv):'—',false,true],
+           ['SSS',r.sss>0?'- '+peso(r.sss):'—',false,true],
+           ['Store Credit',r.sc>0?'- '+peso(r.sc):'—',false,true]].map(([l,v,bold,red])=>`
+          <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f9f9f9;">
+            <span style="font-size:13px;color:#6b7280;">${l}</span>
+            <span class="df" style="font-size:14px;font-weight:${bold?'700':'600'};color:${red?'#dc2626':'#111'};">${v}</span>
+          </div>`).join('')}
+        <div style="display:flex;justify-content:space-between;padding:10px 0 4px;border-top:2px solid #111;margin-top:4px;">
+          <span style="font-size:14px;font-weight:700;color:#111;">NET PAY</span>
+          <span class="df" style="font-size:18px;font-weight:700;color:#dc2626;">${peso(r.netPay)}</span>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ===== EXCEL EXPORT =====
+function exportExcel() {
+  const from = document.getElementById('repFrom').value;
+  const to   = document.getElementById('repTo').value;
+  const wb   = XLSX.utils.book_new();
+
+  const data = staff.map(s => {
+    const att    = attendance.filter(a=>a.staffId===s.id&&a.date>=from&&a.date<=to);
+    const present= att.filter(a=>a.status==='present').length;
+    const half   = att.filter(a=>a.status==='half').length;
+    const absent = att.filter(a=>a.status==='absent').length;
+    const salary = present*s.dailyRate + half*s.dailyRate*0.5;
+    const tips   = accumulatedTipsFor(s.id,from,to);
+    const cashAdv= cashAdvanceFor(s.id,from,to);
+    const sss    = sssFor(s.id,from,to);
+    const sc     = storeCreditFor(s.id,from,to);
+    const gross  = salary+tips;
+    return [s.name,s.position,s.dailyRate,present,half,absent,salary,tips,gross,cashAdv,sss,sc,gross-cashAdv-sss-sc];
+  });
+  const cols = (n) => data.reduce((a,b)=>a+b[n],0);
+  const ws1  = XLSX.utils.aoa_to_sheet([
+    ['Staff Payroll Report'],['Period: '+from+' to '+to],[],
+    ['Name','Position','Daily Rate','Present','Half','Absent','Salary','Tips','Gross','Cash Adv','SSS','Store Credit','NET PAY'],
+    ...data,[],['TOTALS','','','',' ','',cols(6),cols(7),cols(8),cols(9),cols(10),cols(11),cols(12)]
+  ]);
+  ws1['!cols']=[{wch:25},{wch:12},{wch:11},{wch:9},{wch:7},{wch:8},{wch:11},{wch:11},{wch:12},{wch:13},{wch:10},{wch:13},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ws1,'Payroll Summary');
+
+  const ws2=XLSX.utils.aoa_to_sheet([['Date','Staff','Status'],...attendance.filter(a=>a.date>=from&&a.date<=to).sort((a,b)=>a.date.localeCompare(b.date)).map(a=>[a.date,getStaffName(a.staffId),a.status])]);
+  ws2['!cols']=[{wch:12},{wch:25},{wch:12}]; XLSX.utils.book_append_sheet(wb,ws2,'Attendance');
+
+  const tipRows=[['Date','Total Pool','Shares','Per Share','Staff','Status','Tip Received']];
+  tipPools.filter(p=>p.date>=from&&p.date<=to).sort((a,b)=>a.date.localeCompare(b.date)).forEach(p=>{
+    const {perStaff,totalShares,sharePerUnit}=calcTipsForDate(p.date);
+    const da=attendance.filter(a=>a.date===p.date);
+    if(!da.length){tipRows.push([p.date,p.totalAmount,0,0,'(none)','-',0]);}
+    else da.forEach((a,i)=>tipRows.push([i?'':p.date,i?'':p.totalAmount,i?'':totalShares,i?'':sharePerUnit,getStaffName(a.staffId),a.status,perStaff[a.staffId]||0]));
+  });
+  const ws3=XLSX.utils.aoa_to_sheet(tipRows); ws3['!cols']=[{wch:12},{wch:12},{wch:8},{wch:12},{wch:25},{wch:10},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ws3,'Tip Splits');
+
+  const ws4=XLSX.utils.aoa_to_sheet([['Date','Staff','Amount','Note'],...cashAdvances.filter(c=>c.date>=from&&c.date<=to).map(c=>[c.date,getStaffName(c.staffId),c.amount,c.note||''])]);
+  ws4['!cols']=[{wch:12},{wch:25},{wch:12},{wch:30}]; XLSX.utils.book_append_sheet(wb,ws4,'Cash Advances');
+
+  const ws5=XLSX.utils.aoa_to_sheet([['Date','Staff','Amount','Note'],...sssDeductions.filter(d=>d.date>=from&&d.date<=to).map(d=>[d.date,getStaffName(d.staffId),d.amount,d.note||''])]);
+  ws5['!cols']=[{wch:12},{wch:25},{wch:12},{wch:30}]; XLSX.utils.book_append_sheet(wb,ws5,'SSS Deductions');
+
+  const ws6=XLSX.utils.aoa_to_sheet([['Date','Staff','Amount','Item'],...storeCredits.filter(s=>s.date>=from&&s.date<=to).sort((a,b)=>a.date.localeCompare(b.date)).map(s=>[s.date,getStaffName(s.staffId),s.amount,s.note||''])]);
+  ws6['!cols']=[{wch:12},{wch:25},{wch:12},{wch:30}]; XLSX.utils.book_append_sheet(wb,ws6,'Store Credits');
+
+  XLSX.writeFile(wb,'Payroll_'+from+'_to_'+to+'.xlsx');
+}
+
+// ===== STORE TAB =====
+
+// Sub-nav switcher
+let currentLogEntries = []; // draft entries before submit
+
+function switchStore(panel) {
+  ['items','log','credits','summary'].forEach(p => {
+    const el = document.getElementById('sp-'+p);
+    if (el) el.classList.toggle('active', p === panel);
+    const key = p === 'summary' ? 'ssnSummary' : p === 'log' ? 'ssnLog' : p === 'credits' ? 'ssnCredits' : 'ssnItems';
+    const btn = document.getElementById(key);
+    if (btn) { btn.style.background = p===panel ? '#dc2626' : 'none'; btn.style.color = p===panel ? '#fff' : '#6b7280'; }
+  });
+  if (panel === 'summary') renderStoreSummary();
+  if (panel === 'log')     renderStoreLog();
+  if (panel === 'items')   renderStoreItems();
+  if (panel === 'credits') renderStoreCredits();
+}
+
+// ---- ITEMS ----
+function addItem() {
+  const name       = document.getElementById('itemName').value.trim();
+  const qty        = document.getElementById('itemQty').value.trim() || '';
+  const staffPrice = parseFloat(document.getElementById('itemStaffPrice').value) || 0;
+  const custPrice  = parseFloat(document.getElementById('itemCustPrice').value) || 0;
+  if (!name) { alert('Enter item name'); return; }
+  if (!staffPrice && !custPrice) { alert('Enter at least one price'); return; }
+  storeItems.push({ id: Date.now(), name, qty, staffPrice, custPrice });
+  document.getElementById('itemName').value       = '';
+  document.getElementById('itemQty').value        = '';
+  document.getElementById('itemStaffPrice').value = '';
+  document.getElementById('itemCustPrice').value  = '';
+  save(); renderStoreItems(); renderLogItemSelect();
+}
+
+function removeItem(id) {
+  if (!confirm('Remove this item?')) return;
+  storeItems = storeItems.filter(i => i.id !== id);
+  save(); renderStoreItems(); renderLogItemSelect();
+}
+
+function editItemStock(id) {
+  const item = storeItems.find(i => i.id === id);
+  if (!item) return;
+  const val = prompt(`Update initial stock for "${item.name}":`, parseInt(item.qty) || 0);
+  if (val === null) return;
+  const n = parseInt(val);
+  if (isNaN(n) || n < 0) { alert('Enter a valid number'); return; }
+  item.qty = n;
+  save(); renderStoreItems(); renderStoreSummary();
+}
+
+function renderStoreItems() {
+  document.getElementById('itemCount').textContent = storeItems.length;
+  const list = document.getElementById('itemList');
+  if (!storeItems.length) {
+    list.innerHTML = '<div style="padding:28px;text-align:center;color:#9ca3af;">No items yet. Add your first item above.</div>';
+    return;
+  }
+  list.innerHTML = storeItems.map(item => `
+    <div class="row">
+      <div class="row-left">
+        <div style="font-weight:600;font-size:15px;color:#111;">${item.name}</div>
+        <div style="font-size:13px;color:#374151;margin-top:2px;">📦 Initial Stock: <strong>${parseInt(item.qty)||0}</strong></div>
+        <div style="display:flex;gap:10px;margin-top:4px;">
+          <span style="font-size:12px;background:#f3f4f6;padding:2px 8px;border-radius:6px;">👤 ${peso(item.staffPrice||0)}</span>
+          <span style="font-size:12px;background:#fef2f2;padding:2px 8px;border-radius:6px;">🛒 ${peso(item.custPrice||0)}</span>
+        </div>
+      </div>
+      <div class="row-right" style="flex-direction:column;gap:6px;align-items:flex-end;">
+        <button class="mini-btn" onclick="editItemStock(${item.id})">📦 Edit Stock</button>
+        <button class="del-btn" onclick="removeItem(${item.id})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderLogItemSelect() {
+  const sel = document.getElementById('logItem');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Select item —</option>' + storeItems.map(i =>
+    `<option value="${i.id}">${i.name} (Staff: ${peso(i.staffPrice||0)} / Cust: ${peso(i.custPrice||0)})</option>`
+  ).join('');
+}
+
+function updateLogPrice() {
+  updateCreditAmt();
+}
+
+function updateCreditAmt() {
+  const itemId  = parseInt(document.getElementById('logItem').value);
+  const qty     = parseFloat(document.getElementById('logCreditQty').value) || 0;
+  const item    = storeItems.find(i => i.id === itemId);
+  const preview = document.getElementById('creditAmtPreview');
+  if (item && qty > 0) {
+    const creditPrice = item.staffPrice || item.custPrice || 0;
+    preview.style.display = 'block';
+    preview.textContent   = `Credit amount: ${peso(creditPrice * qty)} (${qty} × ${peso(creditPrice)} staff price)`;
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+function updateCustSoldPreview() {
+  const itemId  = parseInt(document.getElementById('logItem').value);
+  const qty     = parseFloat(document.getElementById('logCustSoldQty').value) || 0;
+  const item    = storeItems.find(i => i.id === itemId);
+  const preview = document.getElementById('custSoldPreview');
+  if (item && qty > 0) {
+    const price = item.custPrice || item.staffPrice || 0;
+    preview.style.display = 'block';
+    preview.textContent   = `Cash sale: ${peso(price * qty)} (${qty} × ${peso(price)})`;
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+// ---- DAILY LOG ----
+function addLogEntry() {
+  const itemId        = parseInt(document.getElementById('logItem').value);
+  const date          = document.getElementById('logDate').value;
+  const staffId       = parseInt(document.getElementById('logStaff').value) || null;
+  const received      = parseFloat(document.getElementById('logReceived').value) || 0;
+  const sold          = parseFloat(document.getElementById('logSold').value) || 0;
+  const creditStaffId = parseInt(document.getElementById('logCreditStaff').value) || null;
+  const creditQty     = parseFloat(document.getElementById('logCreditQty').value) || 0;
+  const custSoldQty   = parseFloat(document.getElementById('logCustSoldQty').value) || 0;
+  if (!itemId) { alert('Select an item'); return; }
+  if (!date)   { alert('Select a date'); return; }
+  const item        = storeItems.find(i => i.id === itemId);
+  const creditPrice = item.staffPrice || item.custPrice || 0;
+  const creditAmt   = creditStaffId && creditQty > 0 ? creditPrice * creditQty : 0;
+
+  // Save directly — custSoldQty is just a cash sale count, not a credit
+  storeLogs.push({
+    id: Date.now(), date, staffId,
+    entries: [{ itemId, received, sold, creditStaffId, creditQty, creditAmt, custSoldQty }],
+    status: 'approved',
+    submittedAt: new Date().toLocaleString('en-PH')
+  });
+
+  // Auto-post staff credit to deductions
+  if (creditStaffId && creditAmt > 0) {
+    storeCredits.push({
+      id: Date.now() + Math.random(),
+      staffId: creditStaffId, date, amount: creditAmt,
+      note: `${item.name} ×${creditQty} (Store credit)`
+    });
+  }
+
+  document.getElementById('logItem').value        = '';
+  document.getElementById('logReceived').value    = '';
+  document.getElementById('logSold').value        = '';
+  document.getElementById('logCreditStaff').value = '';
+  document.getElementById('logCreditQty').value   = '';
+  document.getElementById('logCustSoldQty').value = '';
+  document.getElementById('creditAmtPreview').style.display = 'none';
+  document.getElementById('custSoldPreview').style.display  = 'none';
+  save();
+  renderDeductions();
+  renderStoreSummary();
+  renderStoreCredits();
+}
+
+function renderStoreLog() {} // Log panel is form-only, no dynamic content
+
+
+// ---- STORE CREDITS VIEW ----
+function renderStoreCredits() {
+  // Populate dropdown
+  const sel = document.getElementById('creditFilterStaff');
+  if (sel) {
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— All Staff —</option>' +
+      staff.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    if (prev) sel.value = prev;
+  }
+
+  const filterStaffId = parseInt(document.getElementById('creditFilterStaff').value) || null;
+
+  // storeCredits is the single source of truth —
+  // auto-populated by ✔ Sold AND used by storeCreditFor() in Reports
+  const allCredits = storeCredits.map(c => ({
+    date:    c.date,
+    staffId: c.staffId,
+    amount:  c.amount,
+    note:    c.note || '',
+  }));
+
+  // Filter by selected staff
+  const filtered = filterStaffId
+    ? allCredits.filter(c => c.staffId === filterStaffId)
+    : allCredits;
+
+  filtered.sort((a,b) => b.date.localeCompare(a.date));
+
+  // Total per staff (for summary cards)
+  const totByStaff = {};
+  allCredits.forEach(c => {
+    totByStaff[c.staffId] = (totByStaff[c.staffId] || 0) + c.amount;
+  });
+
+  const cards = document.getElementById('storeCreditSummaryCards');
+  const list  = document.getElementById('storeCreditList');
+
+  // Summary cards — show all staff totals (or just selected)
+  const cardStaff = filterStaffId
+    ? staff.filter(s => s.id === filterStaffId)
+    : staff.filter(s => totByStaff[s.id] > 0);
+
+  if (cardStaff.length) {
+    cards.style.display = 'grid';
+    cards.innerHTML = cardStaff.map(s => `
+      <div class="stat-card" style="background:#dc2626;color:#fff;">
+        <div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">${s.name.split(' ')[0]}</div>
+        <div class="df" style="font-size:20px;font-weight:700;">${peso(totByStaff[s.id]||0)}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.7);">Total credit</div>
+      </div>`).join('');
+  } else {
+    cards.style.display = 'none';
+    cards.innerHTML = '';
+  }
+
+  // Credit list
+  if (!filtered.length) {
+    list.innerHTML = '<div style="padding:32px;text-align:center;color:#9ca3af;">No store credits found.</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(c => `
+    <div class="row">
+      <div class="row-left">
+        <div style="font-weight:700;font-size:15px;color:#111;">${getStaffName(c.staffId)}</div>
+        <div style="font-size:13px;color:#6b7280;">${fmtDate(c.date)}</div>
+        <div style="font-size:12px;color:#374151;margin-top:2px;">🥤 ${c.note || 'Store credit'}</div>
+      </div>
+      <div class="df" style="font-size:18px;font-weight:800;color:#dc2626;flex-shrink:0;">- ${peso(c.amount)}</div>
+    </div>`).join('');
+}
+
+// ---- STORE SUMMARY ----
+function renderStoreSummary() {
+  const from    = document.getElementById('storeFrom').value;
+  const to      = document.getElementById('storeTo').value;
+  const content = document.getElementById('storeSummaryContent');
+
+  const approved = storeLogs.filter(l => l.status === 'approved' && l.date >= from && l.date <= to);
+
+  // Build per-item totals
+  const totals = {};
+  storeItems.forEach(i => {
+    totals[i.id] = {
+      name: i.name,
+      initialQty: parseInt(i.qty) || 0,
+      staffPrice: i.staffPrice || 0,
+      custPrice:  i.custPrice  || 0,
+      received:   0, sold: 0,
+      staffCreditQty: 0, staffCreditAmt: 0,
+      custSoldQty: 0,  // cash sales to customers — not a credit
+    };
+  });
+
+  approved.forEach(log => {
+    log.entries.forEach(e => {
+      const t = totals[e.itemId];
+      if (!t) return;
+      t.received       += e.received       || 0;
+      t.sold           += e.sold           || 0;
+      t.staffCreditQty += e.creditQty      || 0;
+      t.staffCreditAmt += e.creditAmt      || 0;
+      t.custSoldQty    += e.custSoldQty    || 0;
+      // legacy support for old custCredits data
+      (e.custCredits||[]).forEach(c => { t.custSoldQty += c.qty || 0; });
+    });
+  });
+
+  const rows = Object.values(totals).map(t => ({
+    ...t,
+    totalDeducted: t.staffCreditQty + t.custSoldQty,
+    remaining:     Math.max(0, t.initialQty - t.staffCreditQty - t.custSoldQty),
+    cashRevenue:   t.custSoldQty * t.custPrice,
+  }));
+
+  const totReceived    = rows.reduce((s,r) => s + r.received, 0);
+  const totSold        = rows.reduce((s,r) => s + r.sold, 0);
+  const totCredit      = rows.reduce((s,r) => s + r.totalCredit, 0);
+  const totCashRev     = rows.reduce((s,r) => s + r.cashRevenue, 0);
+  const totStaffCredit = rows.reduce((s,r) => s + r.staffCreditAmt, 0);
+  const totCustSold    = rows.reduce((s,r) => s + r.custSoldQty, 0);
+  const totRemaining   = rows.reduce((s,r) => s + r.remaining, 0);
+
+  content.innerHTML = `
+
+    <!-- Top summary cards -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div class="stat-card" style="background:#000;color:#fff;grid-column:span 2;">
+        <div style="font-size:10px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">💵 Cash in Hand (Est.)</div>
+        <div class="df" style="font-size:26px;font-weight:700;margin:2px 0;">${peso(totCashRev)}</div>
+        <div style="font-size:11px;color:#6b7280;">Cash sales × customer price</div>
+      </div>
+      <div class="stat-card" style="background:#dc2626;color:#fff;">
+        <div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">👤 Staff Credit</div>
+        <div class="df" style="font-size:18px;font-weight:700;">${peso(totStaffCredit)}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.7);">Goes to payroll</div>
+      </div>
+      <div class="stat-card" style="background:#15803d;color:#fff;">
+        <div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">🛒 Sold to Customer</div>
+        <div class="df" style="font-size:18px;font-weight:700;">${totCustSold} pcs</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.7);">Cash only</div>
+      </div>
+    </div>
+
+    <!-- Per item inventory table -->
+    <div class="section-title">Inventory Breakdown</div>
+    <div class="card" style="overflow:hidden;">
+      ${!rows.length
+        ? '<div style="padding:32px;text-align:center;color:#9ca3af;">No items yet. Add items in the Items tab.</div>'
+        : rows.map(r => `
+          <div style="padding:12px 16px;border-bottom:1px solid #f5f5f5;">
+
+            <!-- Item name + prices -->
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-weight:700;font-size:15px;color:#111;">${r.name}</span>
+              <div style="display:flex;gap:6px;">
+                <span style="font-size:11px;background:#f3f4f6;color:#374151;padding:2px 7px;border-radius:6px;font-weight:600;">👤 ${peso(r.staffPrice)}</span>
+                <span style="font-size:11px;background:#eff6ff;color:#1d4ed8;padding:2px 7px;border-radius:6px;font-weight:600;">🛒 ${peso(r.custPrice)}</span>
+              </div>
+            </div>
+
+            <!-- 4-box grid -->
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;text-align:center;">
+              <div style="background:#f3f4f6;border-radius:8px;padding:8px 4px;">
+                <div style="font-size:20px;font-weight:800;color:#374151;">${r.initialQty}</div>
+                <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;">Total Inv.</div>
+              </div>
+              <div style="background:#fef9c3;border-radius:8px;padding:8px 4px;">
+                <div style="font-size:20px;font-weight:800;color:#92400e;">${r.staffCreditQty}</div>
+                <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;">👤 Credit</div>
+              </div>
+              <div style="background:#dcfce7;border-radius:8px;padding:8px 4px;">
+                <div style="font-size:20px;font-weight:800;color:#15803d;">${r.custSoldQty}</div>
+                <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;">🛒 Sold</div>
+              </div>
+              <div style="background:${r.remaining <= 0 ? '#fef2f2' : '#f0fdf4'};border-radius:8px;padding:8px 4px;border:2px solid ${r.remaining <= 0 ? '#fca5a5' : '#86efac'};">
+                <div style="font-size:20px;font-weight:800;color:${r.remaining <= 0 ? '#dc2626' : '#15803d'};">${r.remaining}</div>
+                <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;">Remaining</div>
+              </div>
+            </div>
+
+            <!-- Formula -->
+            <div style="font-size:11px;color:#9ca3af;margin-top:6px;text-align:center;">
+              ${r.initialQty} − ${r.staffCreditQty} credit − ${r.custSoldQty} sold = <strong style="color:${r.remaining<=0?'#dc2626':'#15803d'};">${r.remaining} left</strong>
+            </div>
+
+            ${r.staffCreditAmt>0 ? `
+            <div style="margin-top:5px;">
+              <span style="font-size:12px;color:#dc2626;font-weight:700;">👤 Staff credit value: ${peso(r.staffCreditAmt)}</span>
+            </div>` : ''}
+          </div>`).join('')}
+    </div>
+
+    ${!approved.length ? `<div style="font-size:12px;color:#9ca3af;text-align:center;padding:8px;">No sales logged yet — Total Inventory comes from the Items tab. Use 📦 Edit Stock to update.</div>` : ''}
+  `;
+}
+
+// ===== FACTORY RESET =====
+const RESET_PIN = '1234'; // Change this to your preferred PIN
+
+function showResetModal() {
+  document.getElementById('resetModal').style.display = 'flex';
+  document.getElementById('resetPin').value = '';
+  document.getElementById('resetPinError').style.display = 'none';
+  document.getElementById('resetStep1').style.display = 'block';
+  document.getElementById('resetStep2').style.display = 'none';
+  setTimeout(() => document.getElementById('resetPin').focus(), 100);
+}
+
+function hideResetModal() {
+  document.getElementById('resetModal').style.display = 'none';
+  document.getElementById('resetPin').value = '';
+  document.getElementById('resetPinError').style.display = 'none';
+  document.getElementById('resetStep1').style.display = 'block';
+  document.getElementById('resetStep2').style.display = 'none';
+}
+
+function checkResetPin() {
+  const entered = document.getElementById('resetPin').value;
+  if (entered === RESET_PIN) {
+    document.getElementById('resetPinError').style.display = 'none';
+    document.getElementById('resetStep1').style.display = 'none';
+    document.getElementById('resetStep2').style.display = 'block';
+  } else {
+    document.getElementById('resetPinError').style.display = 'block';
+    document.getElementById('resetPin').value = '';
+    document.getElementById('resetPin').focus();
+  }
+}
+
+function doFactoryReset() {
+  // Wipe all data
+  const resetStaff = [
+    { id: 1, name: 'Kevin John Alib',         position: 'Staff', dailyRate: 450 },
+    { id: 2, name: 'Mark Angelo Salamanca',   position: 'Staff', dailyRate: 450 },
+    { id: 3, name: 'Julius Palmes',           position: 'Staff', dailyRate: 450 },
+    { id: 4, name: 'Frank Bautista Clifford', position: 'Staff', dailyRate: 450 },
+    { id: 5, name: 'Joshua Duaya',            position: 'Staff', dailyRate: 450 },
+  ];
+  // Wipe cloud data too
+  KEYS.forEach(k => saveKey(k, k === 'staff' ? resetStaff : []));
+
+  localStorage.removeItem('staff');
+  localStorage.removeItem('attendance');
+  localStorage.removeItem('tipPools');
+  localStorage.removeItem('cashAdvances');
+  localStorage.removeItem('sssDeductions');
+  localStorage.removeItem('storeCredits');
+  localStorage.removeItem('storeItems');
+  localStorage.removeItem('storeLogs');
+
+  staff = [
+    { id: 1, name: 'Kevin John Alib',        position: 'Staff', dailyRate: 450 },
+    { id: 2, name: 'Mark Angelo Salamanca',  position: 'Staff', dailyRate: 450 },
+    { id: 3, name: 'Julius Palmes',          position: 'Staff', dailyRate: 450 },
+    { id: 4, name: 'Frank Bautista Clifford',position: 'Staff', dailyRate: 450 },
+    { id: 5, name: 'Joshua Duaya',           position: 'Staff', dailyRate: 450 },
+  ];
+  attendance    = [];
+  tipPools      = [];
+  cashAdvances  = [];
+  sssDeductions = [];
+  storeCredits  = [];
+  storeItems    = [];
+  storeLogs     = [];
+  save();
+
+  // Re-render everything
+  renderStaff(); renderAllSelects(); renderAttendance(); renderTips(); renderDeductions();
+
+  hideResetModal();
+
+  // Switch back to Staff tab
+  document.querySelectorAll('#bottomNav button').forEach(b => b.classList.remove('active'));
+  document.querySelector('#bottomNav button[data-tab="staff"]').classList.add('active');
+  document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+  document.getElementById('tab-staff').classList.add('active');
+
+  alert('✅ App has been reset to factory settings.');
+}
+
+// Allow pressing Enter on PIN field
+document.getElementById('resetPin').addEventListener('keydown', e => {
+  if (e.key === 'Enter') checkResetPin();
+});
+
+// Fix desktop layout: set appBody top margin to match actual header height
+function fixDesktopLayout() {
+  if (window.innerWidth >= 768) {
+    const hh = document.getElementById('appHeader').offsetHeight;
+    document.getElementById('appBody').style.marginTop = hh + 'px';
+    document.getElementById('appBody').style.marginLeft = '100px';
+    document.getElementById('appBody').style.width = 'calc(100% - 100px)';
+  } else {
+    document.getElementById('appBody').style.marginTop = '';
+    document.getElementById('appBody').style.marginLeft = '';
+    document.getElementById('appBody').style.width = '';
+  }
+}
+window.addEventListener('resize', fixDesktopLayout);
+window.addEventListener('load', fixDesktopLayout);
+setTimeout(fixDesktopLayout, 100);
+
+// ===== LOGIN / SECURITY =====
+// Accounts: username (lowercase) → { display, password, role }
+const ACCOUNTS = {
+  'boss b':  { display: 'Boss B',               password: '1007', role: 'manager' },
+  'julius':  { display: 'Julius Palmes',         password: '2283', role: 'encoder' },
+  'angelo':  { display: 'Mark Angelo Salamanca', password: '3382', role: 'encoder' },
+  'kevin':   { display: 'Kevin John Alib',         password: 'kevin',  role: 'viewer'  },
+  'joshua':  { display: 'Joshua Duaya',            password: 'joshua', role: 'viewer'  },
+  'frank':   { display: 'Frank Bautista Clifford', password: 'frank',  role: 'viewer'  },
+};
+
+let currentUser = null;
+
+function doLogin() {
+  const username = document.getElementById('loginUser').value.trim().toLowerCase();
+  const password = document.getElementById('loginPass').value;
+  const account  = ACCOUNTS[username];
+  if (account && account.password === password) {
+    currentUser = { username, ...account };
+    sessionStorage.setItem('loggedIn', username);
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('appWrapper').classList.add('visible');
+    document.getElementById('loginError').style.display = 'none';
+    applyRoleRestrictions();
+    testSupabaseConnection();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+    document.getElementById('loginPass').value = '';
+    document.getElementById('loginPass').focus();
+  }
+}
+
+function togglePass() {
+  const inp = document.getElementById('loginPass');
+  const btn = document.getElementById('passToggleBtn');
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+  else { inp.type = 'password'; btn.textContent = '👁'; }
+}
+
+function applyRoleRestrictions() {
+  if (!currentUser) return;
+
+  // Show logged-in user in header
+  const dateEl = document.getElementById('todayDate');
+  if (dateEl) {
+    dateEl.innerHTML = new Date().toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) +
+      `<div style="font-size:10px;color:#dc2626;font-weight:700;margin-top:1px;">👤 ${currentUser.display}</div>`;
+  }
+
+  const role = currentUser.role;
+
+  // ── ENCODER (Julius, Angelo): Tips + Store + Details ──
+  if (role === 'encoder') {
+    ['staff','attendance','deductions','reports'].forEach(tab => {
+      const btn = document.querySelector(`#bottomNav button[data-tab="${tab}"]`);
+      if (btn) btn.style.display = 'none';
+    });
+    // Hide Reset button
+    const resetBtn = document.querySelector('button[onclick="showResetModal()"]');
+    if (resetBtn) resetBtn.style.display = 'none';
+    // Lock tip date to today
+    window._lockTipDate = true;
+    // Cannot delete tip entries
+    window._staffCannotDelete = true;
+    // Start on Tips tab
+    _switchToTab('tips');
+  }
+
+  // ── VIEWER (Kevin, Joshua, Frank): Tips (view only) + Store Credits + Details ──
+  else if (role === 'viewer') {
+    ['staff','attendance','deductions','reports'].forEach(tab => {
+      const btn = document.querySelector(`#bottomNav button[data-tab="${tab}"]`);
+      if (btn) btn.style.display = 'none';
+    });
+    const resetBtn = document.querySelector('button[onclick="showResetModal()"]');
+    if (resetBtn) resetBtn.style.display = 'none';
+    // Cannot encode or delete tips
+    window._staffCannotDelete = true;
+    window._tipViewOnly = true;
+    // In Store tab, auto-open Credits panel only and hide other sub-tabs
+    window._storeCreditsOnly = true;
+    setTimeout(() => {
+      ['ssnItems','ssnLog','ssnSummary'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+    }, 50);
+    // Start on Tips tab
+    _switchToTab('tips');
+  }
+
+  // ── MANAGER: full access ──
+  else {
+    window._staffCannotDelete = false;
+    window._lockTipDate       = false;
+    window._tipViewOnly       = false;
+    window._storeCreditsOnly  = false;
+    // Show Push to Cloud button for manager
+    const pushBtn = document.getElementById('pushCloudBtn');
+    if (pushBtn) pushBtn.style.display = 'flex';
+  }
+}
+
+function _switchToTab(tabName) {
+  document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+  document.getElementById('tab-' + tabName).classList.add('active');
+  document.querySelectorAll('#bottomNav button').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`#bottomNav button[data-tab="${tabName}"]`);
+  if (btn) btn.classList.add('active');
+}
+
+// Add logout button to reset button area
+function logout() {
+  if (!confirm('Sign out?')) return;
+  sessionStorage.removeItem('loggedIn');
+  currentUser = null;
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginError').style.display = 'none';
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('appWrapper').classList.remove('visible');
+}
+
+// Check session on load (so refresh doesn't kick you out within same session)
+const savedSession = sessionStorage.getItem('loggedIn');
+if (savedSession && ACCOUNTS[savedSession]) {
+  currentUser = { username: savedSession, ...ACCOUNTS[savedSession] };
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('appWrapper').classList.add('visible');
+  applyRoleRestrictions();
+}
+
+// ===== Initial render =====
+renderStaff(); renderAllSelects(); renderAttendance(); renderTips(); renderDeductions();
+renderStoreItems(); renderLogItemSelect(); renderStoreLog(); renderStoreSummary(); renderStoreCredits();
+// Load from cloud (overwrites local if cloud has data)
+loadFromCloud();
+</script>
+</body>
+</html>
