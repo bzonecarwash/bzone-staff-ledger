@@ -2346,6 +2346,9 @@ function togglePass() {
 function applyRoleRestrictions() {
   if (!currentUser) return;
 
+  // Always reset first — cleans up any previous role's restrictions
+  resetRoleRestrictions();
+
   // Show logged-in user in header
   const dateEl = document.getElementById('todayDate');
   if (dateEl) {
@@ -2401,10 +2404,47 @@ function applyRoleRestrictions() {
     window._lockTipDate       = false;
     window._tipViewOnly       = false;
     window._storeCreditsOnly  = false;
-    // Show Push to Cloud button for manager
+    // Show Push button for manager
     const pushBtn = document.getElementById('pushCloudBtn');
     if (pushBtn) pushBtn.style.display = 'flex';
+    // Return to staff tab
+    _switchToTab('staff');
   }
+}
+
+function resetRoleRestrictions() {
+  // Show all nav tabs
+  ['staff','attendance','tips','deductions','store','details','reports'].forEach(tab => {
+    const btn = document.querySelector(`#bottomNav button[data-tab="${tab}"]`);
+    if (btn) btn.style.display = '';
+  });
+  // Show reset button
+  const resetBtn = document.querySelector('button[onclick="showResetModal()"]');
+  if (resetBtn) resetBtn.style.display = '';
+  // Show push button
+  const pushBtn = document.getElementById('pushCloudBtn');
+  if (pushBtn) pushBtn.style.display = 'none';
+  // Show store sub-tabs
+  ['ssnItems','ssnLog','ssnSummary','ssnCredits'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = '';
+  });
+  // Unlock tip date
+  const tipDateInp = document.getElementById('tipDate');
+  if (tipDateInp) {
+    tipDateInp.readOnly = false;
+    tipDateInp.style.background = '';
+    tipDateInp.style.color = '';
+    tipDateInp.style.cursor = '';
+  }
+  // Show tip form
+  const tipTop = document.querySelector('#tab-tips .tab-top');
+  if (tipTop) tipTop.style.display = '';
+  // Reset flags
+  window._staffCannotDelete = false;
+  window._lockTipDate       = false;
+  window._tipViewOnly       = false;
+  window._storeCreditsOnly  = false;
 }
 
 function _switchToTab(tabName) {
@@ -2420,11 +2460,14 @@ function logout() {
   if (!confirm('Sign out?')) return;
   sessionStorage.removeItem('loggedIn');
   currentUser = null;
+  resetRoleRestrictions();
   document.getElementById('loginUser').value = '';
   document.getElementById('loginPass').value = '';
   document.getElementById('loginError').style.display = 'none';
   document.getElementById('loginScreen').classList.remove('hidden');
   document.getElementById('appWrapper').classList.remove('visible');
+  // Stop polling while logged out
+  if (_pollInterval) { clearInterval(_pollInterval); _pollInterval = null; }
 }
 
 // Check session on load (so refresh doesn't kick you out within same session)
