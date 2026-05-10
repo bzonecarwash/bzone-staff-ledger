@@ -752,57 +752,110 @@ const SUPA_HEADERS = { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY
 
 const KEYS = ['staff','attendance','tipPools','cashAdvances','sssDeductions','storeCredits','storeItems','storeLogs'];
 
-// Save single key to Supabase + localStorage backup
+let _lastUpdated = {}; // track last updated_at per key to detect changes
+let _pollInterval = null;
+let _isSaving = false;
+
+// ── Save single key to Supabase + localStorage ──
 async function saveKey(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
   try {
-    await fetch(`${SUPA_URL}/rest/v1/bzone_data`, {
+    const r = await fetch(`${SUPA_URL}/rest/v1/bzone_data`, {
       method: 'POST',
       headers: { ...SUPA_HEADERS, 'Prefer': 'resolution=merge-duplicates' },
       body: JSON.stringify({ key, value: JSON.stringify(value), updated_at: new Date().toISOString() })
     });
-  } catch(e) { console.warn('Supabase save failed, using local:', e); }
+    if (r.ok) showSyncIndicator(true);
+  } catch(e) {
+    showSyncIndicator(false);
+    console.warn('Supabase save failed:', e);
+  }
 }
 
-// Save all state
+// ── Save all state ──
 function save() {
+  _isSaving = true;
   const state = { staff, attendance, tipPools, cashAdvances, sssDeductions, storeCredits, storeItems, storeLogs };
-  KEYS.forEach(k => saveKey(k, state[k]));
+  Promise.all(KEYS.map(k => saveKey(k, state[k]))).then(() => { _isSaving = false; });
 }
 
-// Load all data from Supabase, fall back to localStorage
+// ── Apply cloud data to state and re-render ──
+function applyCloudData(map, rerender = true) {
+  let changed = false;
+  const parse = (k) => { try { return JSON.parse(map[k]); } catch(e) { return null; } };
+  if (map.staff)         { const v = parse('staff');         if (v) { staff         = v; v.forEach(s => { if (!s.dailyRate) s.dailyRate = 450; }); changed = true; } }
+  if (map.attendance)    { const v = parse('attendance');    if (v) { attendance    = v; changed = true; } }
+  if (map.tipPools)      { const v = parse('tipPools');      if (v) { tipPools      = v; changed = true; } }
+  if (map.cashAdvances)  { const v = parse('cashAdvances');  if (v) { cashAdvances  = v; changed = true; } }
+  if (map.sssDeductions) { const v = parse('sssDeductions'); if (v) { sssDeductions = v; changed = true; } }
+  if (map.storeCredits)  { const v = parse('storeCredits');  if (v) { storeCredits  = v; changed = true; } }
+  if (map.storeItems)    { const v = parse('storeItems');    if (v) { storeItems    = v; changed = true; } }
+  if (map.storeLogs)     { const v = parse('storeLogs');     if (v) { storeLogs     = v; changed = true; } }
+  KEYS.forEach(k => { if (map[k]) localStorage.setItem(k, map[k]); });
+  if (changed && rerender) {
+    renderStaff(); renderAllSelects(); renderAttendance(); renderTips(); renderDeductions();
+    renderStoreItems(); renderLogItemSelect(); renderStoreLog(); renderStoreSummary(); renderStoreCredits();
+  }
+  return changed;
+}
+
+// ── Initial full load from cloud ──
 async function loadFromCloud() {
-  showSyncStatus('⏳ Loading data...');
+  showSyncStatus('⏳ Connecting to cloud...');
   try {
-    const res  = await fetch(`${SUPA_URL}/rest/v1/bzone_data?select=key,value`, { headers: SUPA_HEADERS });
+    const res  = await fetch(`${SUPA_URL}/rest/v1/bzone_data?select=key,value,updated_at`, { headers: SUPA_HEADERS });
     const rows = await res.json();
     if (Array.isArray(rows) && rows.length > 0) {
       const map = {};
-      rows.forEach(r => { map[r.key] = r.value; });
-      if (map.staff)         { const v = JSON.parse(map.staff);         if (v) { staff         = v; v.forEach(s => { if (!s.dailyRate) s.dailyRate = 450; }); } }
-      if (map.attendance)    { const v = JSON.parse(map.attendance);    if (v) attendance    = v; }
-      if (map.tipPools)      { const v = JSON.parse(map.tipPools);      if (v) tipPools      = v; }
-      if (map.cashAdvances)  { const v = JSON.parse(map.cashAdvances);  if (v) cashAdvances  = v; }
-      if (map.sssDeductions) { const v = JSON.parse(map.sssDeductions); if (v) sssDeductions = v; }
-      if (map.storeCredits)  { const v = JSON.parse(map.storeCredits);  if (v) storeCredits  = v; }
-      if (map.storeItems)    { const v = JSON.parse(map.storeItems);    if (v) storeItems    = v; }
-      if (map.storeLogs)     { const v = JSON.parse(map.storeLogs);     if (v) storeLogs     = v; }
-      // Also update localStorage as backup
-      KEYS.forEach(k => { if (map[k]) localStorage.setItem(k, map[k]); });
-      showSyncStatus('✅ Data loaded!', 2000);
+      rows.forEach(r => { map[r.key] = r.value; _lastUpdated[r.key] = r.updated_at; });
+      applyCloudData(map, true);
+      showSyncStatus('✅ Synced!', 2000);
+      startPolling(); // begin auto-sync after load
     } else {
-      showSyncStatus('📱 No cloud data yet. Use "Push to Cloud" to upload your data.', 5000);
+      showSyncStatus('📱 No cloud data yet. Use ☁️ PUSH to upload your data.', 5000);
+      startPolling();
     }
   } catch(e) {
     showSyncStatus('⚠️ Offline — using local data', 3000);
     console.warn('Cloud load failed:', e);
+    startPolling(); // still poll in case connection recovers
   }
-  // Re-render everything after load
-  renderStaff(); renderAllSelects(); renderAttendance(); renderTips(); renderDeductions();
-  renderStoreItems(); renderLogItemSelect(); renderStoreLog(); renderStoreSummary(); renderStoreCredits();
 }
 
-// Push all localStorage data to Supabase (one-time migration)
+// ── Poll Supabase every 10 seconds for changes ──
+function startPolling() {
+  if (_pollInterval) clearInterval(_pollInterval);
+  _pollInterval = setInterval(pollForChanges, 10000);
+}
+
+async function pollForChanges() {
+  if (_isSaving) return; // don't poll while saving to avoid overwriting
+  try {
+    const res  = await fetch(`${SUPA_URL}/rest/v1/bzone_data?select=key,value,updated_at`, { headers: SUPA_HEADERS });
+    const rows = await res.json();
+    if (!Array.isArray(rows)) return;
+
+    // Check if any key has been updated since last check
+    let hasNew = false;
+    const map  = {};
+    rows.forEach(r => {
+      map[r.key] = r.value;
+      if (r.updated_at !== _lastUpdated[r.key]) { hasNew = true; _lastUpdated[r.key] = r.updated_at; }
+    });
+
+    if (hasNew) {
+      applyCloudData(map, true);
+      showSyncStatus('🔄 Updated!', 1500);
+    }
+
+    // Update sync indicator to green (online)
+    showSyncIndicator(true);
+  } catch(e) {
+    showSyncIndicator(false);
+  }
+}
+
+// ── One-time push: upload all local data to cloud ──
 async function pushToCloud() {
   if (!confirm('Upload all your local data to the cloud? This will overwrite any existing cloud data.')) return;
   showSyncStatus('⬆️ Uploading to cloud...');
@@ -819,12 +872,13 @@ async function pushToCloud() {
     } catch(e) { console.warn('Failed to push', k, e); }
   }
   if (ok === KEYS.length) {
-    showSyncStatus('✅ All data pushed to cloud! All devices will now sync.', 4000);
+    showSyncStatus('✅ All data pushed! All devices will now sync.', 4000);
   } else {
-    showSyncStatus(`⚠️ Pushed ${ok}/${KEYS.length} — check your connection.`, 4000);
+    showSyncStatus(`⚠️ Pushed ${ok}/${KEYS.length} — check connection.`, 4000);
   }
 }
 
+// ── Sync status toast ──
 function showSyncStatus(msg, duration) {
   let el = document.getElementById('syncStatus');
   if (!el) {
@@ -836,6 +890,20 @@ function showSyncStatus(msg, duration) {
   el.textContent = msg;
   el.style.opacity = '1';
   if (duration) setTimeout(() => { el.style.opacity = '0'; }, duration);
+}
+
+// ── Small cloud dot indicator in header ──
+function showSyncIndicator(online) {
+  let dot = document.getElementById('syncDot');
+  if (!dot) {
+    dot = document.createElement('div');
+    dot.id = 'syncDot';
+    dot.title = 'Cloud sync status';
+    dot.style.cssText = 'width:8px;height:8px;border-radius:50%;position:absolute;top:8px;right:8px;';
+    const pushBtn = document.getElementById('pushCloudBtn');
+    if (pushBtn) { pushBtn.style.position = 'relative'; pushBtn.appendChild(dot); }
+  }
+  dot.style.background = online ? '#22c55e' : '#ef4444';
 }
 
 const peso = n => '₱' + (n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
