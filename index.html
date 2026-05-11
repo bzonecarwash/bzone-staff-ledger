@@ -2106,21 +2106,32 @@ function renderStoreSummary() {
     });
   });
 
-  const rows = Object.values(totals).map(t => ({
-    ...t,
-    costPrice:   t.costPrice || 0,
-    custSold:    t.custSoldQty,
-    credit:      t.staffCreditQty,
-    staffCash:   t.cashStaffQty,
-    remaining:   Math.max(0, t.initialQty - t.custSoldQty - t.staffCreditQty - t.cashStaffQty),
-    cashRevenue: (t.custSoldQty + t.cashStaffQty) * t.custPrice,
-  }));
+  const rows = Object.values(totals).map(t => {
+    // Use storeCredits for accurate staff credit amounts (single source of truth)
+    const itemCredits = storeCredits.filter(c =>
+      c.note && c.note.toLowerCase().startsWith(t.name.toLowerCase())
+    );
+    const creditAmtFromStore = itemCredits.reduce((s,c) => s + c.amount, 0);
+    return {
+      ...t,
+      costPrice:      t.costPrice || 0,
+      custSold:       t.custSoldQty,
+      credit:         t.staffCreditQty,
+      staffCash:      t.cashStaffQty,
+      staffCreditAmt: creditAmtFromStore || t.staffCreditAmt,
+      remaining:      Math.max(0, t.initialQty - t.custSoldQty - t.staffCreditQty - t.cashStaffQty),
+      cashRevenue:    (t.custSoldQty + t.cashStaffQty) * t.custPrice,
+    };
+  });
 
   const totReceived    = rows.reduce((s,r) => s + r.received, 0);
   const totSold        = rows.reduce((s,r) => s + r.sold, 0);
   const totCredit      = rows.reduce((s,r) => s + r.totalCredit, 0);
   const totCashRev     = rows.reduce((s,r) => s + r.cashRevenue, 0);
-  const totStaffCredit = rows.reduce((s,r) => s + r.staffCreditAmt, 0);
+  // Use storeCredits as single source of truth — same data shown in Credits tab
+  const totStaffCredit = storeCredits
+    .filter(c => (!from || c.date >= from) && (!to || c.date <= to))
+    .reduce((s,c) => s + c.amount, 0);
   const totCustSold    = rows.reduce((s,r) => s + r.custSoldQty, 0);
   const totRemaining   = rows.reduce((s,r) => s + r.remaining, 0);
 
