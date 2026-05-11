@@ -256,7 +256,7 @@
     #tab-store .tab-top .card-body { max-width: 700px; }
 
     /* Summary and credits — wider content */
-    #storeSummaryContent { max-width: 100%; }
+    #storeSummaryStats, #storeSummaryBreakdown { max-width: 100%; }
     #storeCreditSummaryCards {
       grid-template-columns: repeat(5, 1fr) !important;
       max-width: 100%;
@@ -677,8 +677,9 @@
           </div>
         </div>
       </div>
+      <div id="storeSummaryStats"></div>
     </div>
-    <div class="tab-scroll"><div id="storeSummaryContent"></div></div>
+    <div class="tab-scroll"><div id="storeSummaryBreakdown"></div></div>
   </div>
 
 </div>
@@ -2016,7 +2017,6 @@ function renderStoreCredits() {
 function renderStoreSummary() {
   const from    = document.getElementById('storeFrom').value;
   const to      = document.getElementById('storeTo').value;
-  const content = document.getElementById('storeSummaryContent');
 
   const approved = storeLogs.filter(l => l.status === 'approved' && l.date >= from && l.date <= to);
 
@@ -2066,10 +2066,12 @@ function renderStoreSummary() {
   const totCustSold    = rows.reduce((s,r) => s + r.custSoldQty, 0);
   const totRemaining   = rows.reduce((s,r) => s + r.remaining, 0);
 
-  content.innerHTML = `
+  const stats     = document.getElementById('storeSummaryStats');
+  const breakdown = document.getElementById('storeSummaryBreakdown');
 
+  stats.innerHTML = `
     <!-- Top summary cards -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
       <div class="stat-card" style="background:#000;color:#fff;grid-column:span 2;">
         <div style="font-size:10px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">💵 Cash in Hand (Est.)</div>
         <div class="df" style="font-size:26px;font-weight:700;margin:2px 0;">${peso(totCashRev)}</div>
@@ -2085,9 +2087,9 @@ function renderStoreSummary() {
         <div class="df" style="font-size:18px;font-weight:700;">${totCustSold} pcs</div>
         <div style="font-size:11px;color:rgba(255,255,255,.7);">Cash only</div>
       </div>
-    </div>
+    </div>`;
 
-    <!-- Per item inventory table -->
+  breakdown.innerHTML = `
     <div class="section-title">Inventory Breakdown</div>
     <div class="card" style="overflow:hidden;">
       ${!rows.length
