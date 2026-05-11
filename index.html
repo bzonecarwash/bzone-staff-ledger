@@ -257,6 +257,29 @@
 
     /* Summary and credits — wider content */
     #storeSummaryStats, #storeSummaryBreakdown { max-width: 100%; }
+
+    /* Summary tab: 2-column layout on desktop */
+    #sp-summary {
+      flex-direction: row !important;
+    }
+    #sp-summary .tab-top {
+      width: 360px !important;
+      min-width: 300px !important;
+      max-width: 400px !important;
+      height: 100% !important;
+      overflow-y: auto !important;
+      border-right: 1px solid #e5e7eb !important;
+      border-bottom: none !important;
+      background: #f8f8f8 !important;
+      padding: 16px 20px !important;
+    }
+    #sp-summary .tab-scroll {
+      flex: 1 !important;
+      height: 100% !important;
+      overflow-y: auto !important;
+      padding: 16px 20px !important;
+      background: #f0f0f0 !important;
+    }
     #storeCreditSummaryCards {
       grid-template-columns: repeat(5, 1fr) !important;
       max-width: 100%;
@@ -666,7 +689,7 @@
   </div>
 
   <!-- PANEL: Summary -->
-  <div id="sp-summary" class="tab-section active" style="flex-direction:column;">
+  <div id="sp-summary" class="tab-section active">
     <div class="tab-top">
       <div class="card">
         <div class="card-header"><span class="df" style="font-size:15px;font-weight:700;">📊 Store Summary</span></div>
