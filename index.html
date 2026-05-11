@@ -1779,9 +1779,44 @@ function removeItem(id) {
   save(); renderStoreItems(); renderLogItemSelect();
 }
 
-function editItemStock(id) {
-  // Same as restock — resets stock and clears sold history for fresh count
-  restockItem(id);
+function editItemStock(id) { restockItem(id); }
+
+function editItem(id) {
+  const item = storeItems.find(i => i.id === id);
+  if (!item) return;
+
+  // Name
+  const name = prompt(`Item name:`, item.name);
+  if (name === null) return;
+  if (!name.trim()) { alert('Name cannot be empty'); return; }
+
+  // Cost price
+  const cost = prompt(`💰 Cost price per unit (₱):\n(What you pay to buy this item)`, item.costPrice || 0);
+  if (cost === null) return;
+  const costPrice = parseFloat(cost) || 0;
+
+  // Staff price
+  const staff_ = prompt(`👤 Staff price per unit (₱):`, item.staffPrice || 0);
+  if (staff_ === null) return;
+  const staffPrice = parseFloat(staff_) || 0;
+
+  // Customer price
+  const cust = prompt(`🛒 Customer price per unit (₱):`, item.custPrice || 0);
+  if (cust === null) return;
+  const custPrice = parseFloat(cust) || 0;
+
+  if (!staffPrice && !custPrice) { alert('Enter at least one selling price'); return; }
+
+  // Apply
+  item.name       = name.trim();
+  item.costPrice  = costPrice;
+  item.staffPrice = staffPrice;
+  item.custPrice  = custPrice;
+
+  save();
+  renderStoreItems();
+  renderLogItemSelect();
+  renderStoreSummary();
 }
 
 function renderStoreItems() {
@@ -1804,6 +1839,7 @@ function renderStoreItems() {
       </div>
       <div class="row-right" style="flex-direction:column;gap:6px;align-items:flex-end;">
         <button class="mini-btn" onclick="editItemStock(${item.id})" style="background:#dc2626;color:#fff;border-color:#dc2626;">🔄 Restock</button>
+        <button class="mini-btn" onclick="editItem(${item.id})" style="background:#1d4ed8;color:#fff;border-color:#1d4ed8;">✏️ Edit</button>
         <button class="del-btn item-del-btn" onclick="removeItem(${item.id})">🗑</button>
       </div>
     </div>`).join('');
