@@ -607,7 +607,8 @@
             <div class="field"><label>Item Name</label><input id="itemName" type="text" placeholder="e.g. Coke 1.5L" class="inp" autocomplete="off"></div>
             <div class="field"><label>Initial Stock</label><input id="itemQty" type="number" placeholder="e.g. 24" class="inp" inputmode="numeric"></div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <div class="field"><label>💰 Cost Price (₱)</label><input id="itemCostPrice" type="number" placeholder="0.00" class="inp" inputmode="decimal"></div>
             <div class="field"><label>👤 Staff Price (₱)</label><input id="itemStaffPrice" type="number" placeholder="0.00" class="inp" inputmode="decimal"></div>
             <div class="field"><label>🛒 Customer Price (₱)</label><input id="itemCustPrice" type="number" placeholder="0.00" class="inp" inputmode="decimal"></div>
           </div>
@@ -1757,13 +1758,15 @@ function switchStore(panel) {
 function addItem() {
   const name       = document.getElementById('itemName').value.trim();
   const qty        = document.getElementById('itemQty').value.trim() || '';
+  const costPrice  = parseFloat(document.getElementById('itemCostPrice').value) || 0;
   const staffPrice = parseFloat(document.getElementById('itemStaffPrice').value) || 0;
   const custPrice  = parseFloat(document.getElementById('itemCustPrice').value) || 0;
   if (!name) { alert('Enter item name'); return; }
   if (!staffPrice && !custPrice) { alert('Enter at least one price'); return; }
-  storeItems.push({ id: Date.now(), name, qty, staffPrice, custPrice });
+  storeItems.push({ id: Date.now(), name, qty, costPrice, staffPrice, custPrice });
   document.getElementById('itemName').value       = '';
   document.getElementById('itemQty').value        = '';
+  document.getElementById('itemCostPrice').value  = '';
   document.getElementById('itemStaffPrice').value = '';
   document.getElementById('itemCustPrice').value  = '';
   save(); renderStoreItems(); renderLogItemSelect();
@@ -1793,7 +1796,8 @@ function renderStoreItems() {
       <div class="row-left">
         <div style="font-weight:600;font-size:15px;color:#111;">${item.name}</div>
         <div style="font-size:13px;color:#374151;margin-top:2px;">📦 Initial Stock: <strong>${parseInt(item.qty)||0}</strong></div>
-        <div style="display:flex;gap:10px;margin-top:4px;">
+        <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;">
+          ${item.costPrice ? `<span style="font-size:12px;background:#f0fdf4;color:#15803d;padding:2px 8px;border-radius:6px;">💰 Cost: ${peso(item.costPrice)}</span>` : ''}
           <span style="font-size:12px;background:#f3f4f6;padding:2px 8px;border-radius:6px;">👤 ${peso(item.staffPrice||0)}</span>
           <span style="font-size:12px;background:#fef2f2;padding:2px 8px;border-radius:6px;">🛒 ${peso(item.custPrice||0)}</span>
         </div>
@@ -2042,13 +2046,13 @@ function renderStoreSummary() {
   storeItems.forEach(i => {
     totals[i.id] = {
       name: i.name,
-      initialQty: parseInt(i.qty) || 0,
-      staffPrice: i.staffPrice || 0,
-      custPrice:  i.custPrice  || 0,
-      received:   0, sold: 0,
+      initialQty:  parseInt(i.qty) || 0,
+      costPrice:   i.costPrice  || 0,
+      staffPrice:  i.staffPrice || 0,
+      custPrice:   i.custPrice  || 0,
+      received: 0, sold: 0,
       staffCreditQty: 0, staffCreditAmt: 0,
-      custSoldQty:    0,
-      cashStaffQty:   0,
+      custSoldQty: 0, cashStaffQty: 0,
     };
   });
 
@@ -2068,6 +2072,7 @@ function renderStoreSummary() {
 
   const rows = Object.values(totals).map(t => ({
     ...t,
+    costPrice:   t.costPrice || 0,
     custSold:    t.custSoldQty,
     credit:      t.staffCreditQty,
     staffCash:   t.cashStaffQty,
@@ -2086,6 +2091,13 @@ function renderStoreSummary() {
   const stats     = document.getElementById('storeSummaryStats');
   const breakdown = document.getElementById('storeSummaryBreakdown');
 
+  // Capital & profit calculations
+  const totCapital      = rows.reduce((s,r) => s + (r.costPrice||0) * r.initialQty, 0);
+  const totCapitalUsed  = rows.reduce((s,r) => s + (r.costPrice||0) * (r.custSold + r.credit + r.staffCash), 0);
+  const totCapitalLeft  = rows.reduce((s,r) => s + (r.costPrice||0) * r.remaining, 0);
+  const totRevenue      = totCashRev + totStaffCredit;
+  const totProfit       = totRevenue - totCapitalUsed;
+
   stats.innerHTML = `
     <!-- Top summary cards -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
@@ -2103,6 +2115,26 @@ function renderStoreSummary() {
         <div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">🛒 Sold to Customer</div>
         <div class="df" style="font-size:18px;font-weight:700;">${totCustSold} pcs</div>
         <div style="font-size:11px;color:rgba(255,255,255,.7);">Cash only</div>
+      </div>
+    </div>
+
+    <!-- Capital & Profit section -->
+    <div class="section-title" style="margin-top:14px;">💰 Capital & Profit</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div class="stat-card" style="background:#1e3a5f;color:#fff;grid-column:span 2;">
+        <div style="font-size:10px;color:rgba(255,255,255,.6);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">📦 Total Capital Invested</div>
+        <div class="df" style="font-size:22px;font-weight:700;margin:2px 0;">${peso(totCapital)}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.5);">Cost × total stock</div>
+      </div>
+      <div class="stat-card" style="background:#374151;color:#fff;">
+        <div style="font-size:10px;color:rgba(255,255,255,.6);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">🏦 Capital in Stock</div>
+        <div class="df" style="font-size:18px;font-weight:700;">${peso(totCapitalLeft)}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.5);">Unsold items value</div>
+      </div>
+      <div class="stat-card" style="background:${totProfit >= 0 ? '#065f46' : '#7f1d1d'};color:#fff;">
+        <div style="font-size:10px;color:rgba(255,255,255,.6);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">${totProfit >= 0 ? '📈 Profit' : '📉 Loss'}</div>
+        <div class="df" style="font-size:18px;font-weight:700;">${peso(Math.abs(totProfit))}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.5);">Revenue − Capital used</div>
       </div>
     </div>`;
 
@@ -2208,34 +2240,52 @@ function renderStoreSummary() {
 function restockItem(itemId) {
   const item = storeItems.find(i => i.id === itemId);
   if (!item) return;
-  const current   = parseInt(item.qty) || 0;
+  const current = parseInt(item.qty) || 0;
   const soldTotal = storeLogs.filter(l => l.status === 'approved')
     .flatMap(l => l.entries).filter(e => e.itemId === itemId)
-    .reduce((s, e) => s + (e.custSoldQty || 0) + (e.creditQty || 0), 0);
+    .reduce((s, e) => s + (e.custSoldQty || 0) + (e.creditQty || 0) + (e.cashStaffQty || 0), 0);
   const remaining = Math.max(0, current - soldTotal);
 
-  const val = prompt(
-    `Restock "${item.name}"\n` +
+  const newQtyVal = prompt(
+    `🔄 Restock "${item.name}"\n` +
     `Current stock: ${current} | Remaining: ${remaining}\n\n` +
-    `Enter the NEW stock quantity (this will reset everything):`, ''
+    `Enter the NEW stock quantity:`, ''
   );
-  if (val === null) return;
-  const newQty = parseInt(val);
+  if (newQtyVal === null) return;
+  const newQty = parseInt(newQtyVal);
   if (isNaN(newQty) || newQty <= 0) { alert('Enter a valid number greater than 0'); return; }
 
-  if (!confirm(`Reset "${item.name}" to ${newQty} units?\n\nThis will:\n✅ Set stock to ${newQty}\n🗑 Clear all previous sold logs for this item\n\nContinue?`)) return;
+  // Ask for cost price per unit
+  const costVal = prompt(
+    `💰 Cost price per unit for this batch?\n` +
+    `(Leave 0 if using existing cost price: ${peso(item.costPrice || 0)})`, item.costPrice || 0
+  );
+  if (costVal === null) return;
+  const newCost = parseFloat(costVal) || item.costPrice || 0;
+  const totalCapital = newCost * newQty;
 
-  // Reset stock
+  if (!confirm(
+    `Restock "${item.name}"?\n\n` +
+    `✅ New stock: ${newQty} units\n` +
+    `💰 Cost: ${peso(newCost)} × ${newQty} = ${peso(totalCapital)} capital\n` +
+    `🗑 Previous sold logs cleared\n\nContinue?`
+  )) return;
+
+  // Update item
   item.qty = newQty;
+  if (newCost > 0) item.costPrice = newCost;
 
-  // Remove all sold log entries for this item
-  storeLogs.forEach(log => {
-    log.entries = log.entries.filter(e => e.itemId !== itemId);
+  // Record restock history
+  if (!item.restockHistory) item.restockHistory = [];
+  item.restockHistory.push({
+    date: new Date().toISOString().split('T')[0],
+    qty: newQty, costPerUnit: newCost, totalCapital,
+    ts: new Date().toLocaleString('en-PH')
   });
-  // Remove empty logs
-  storeLogs = storeLogs.filter(l => l.entries.length > 0);
 
-  // Remove store credits linked to this item
+  // Clear sold logs for this item
+  storeLogs.forEach(log => { log.entries = log.entries.filter(e => e.itemId !== itemId); });
+  storeLogs = storeLogs.filter(l => l.entries.length > 0);
   storeCredits = storeCredits.filter(c => !c.note || !c.note.includes(item.name));
 
   save();
@@ -2243,7 +2293,7 @@ function restockItem(itemId) {
   renderStoreSummary();
   renderStoreCredits();
   renderDeductions();
-  alert(`✅ "${item.name}" restocked to ${newQty} units. Sold history cleared.`);
+  alert(`✅ Restocked! ${item.name} = ${newQty} units. Capital invested: ${peso(totalCapital)}`);
 }
 
 // ── Delete a specific sold log entry ──
