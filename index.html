@@ -1777,14 +1777,8 @@ function removeItem(id) {
 }
 
 function editItemStock(id) {
-  const item = storeItems.find(i => i.id === id);
-  if (!item) return;
-  const val = prompt(`Update initial stock for "${item.name}":`, parseInt(item.qty) || 0);
-  if (val === null) return;
-  const n = parseInt(val);
-  if (isNaN(n) || n < 0) { alert('Enter a valid number'); return; }
-  item.qty = n;
-  save(); renderStoreItems(); renderStoreSummary();
+  // Same as restock — resets stock and clears sold history for fresh count
+  restockItem(id);
 }
 
 function renderStoreItems() {
@@ -1805,7 +1799,7 @@ function renderStoreItems() {
         </div>
       </div>
       <div class="row-right" style="flex-direction:column;gap:6px;align-items:flex-end;">
-        <button class="mini-btn" onclick="editItemStock(${item.id})">📦 Edit Stock</button>
+        <button class="mini-btn" onclick="editItemStock(${item.id})" style="background:#dc2626;color:#fff;border-color:#dc2626;">🔄 Restock</button>
         <button class="del-btn" onclick="removeItem(${item.id})" style="${window._staffCannotDelete?'display:none;':''}">🗑</button>
       </div>
     </div>`).join('');
