@@ -33,14 +33,16 @@
   #appBody { flex: 1; overflow: hidden; position: relative; }
 
   /* Each tab fills the app body */
-  .tab-section { display: none; flex-direction: column; height: 100%; width: 100%; }
+  .tab-section { display: none; flex-direction: column; height: 100%; width: 100%; overflow: hidden; }
   .tab-section.active { display: flex; }
 
-  /* Fixed top part of each tab (form) */
+  /* On mobile: entire tab is ONE scrollable column — no split */
   .tab-top { flex-shrink: 0; background: #f5f5f5; padding: 10px 12px 4px; }
+  .tab-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 12px; -webkit-overflow-scrolling: touch; }
 
-  /* Scrollable bottom part of each tab (list) */
-  .tab-scroll { flex: 1; overflow-y: auto; padding: 0 12px 12px; -webkit-overflow-scrolling: touch; }
+  /* Summary tab on mobile: merge top+scroll into single scroll */
+  #sp-summary .tab-top,
+  #sp-log .tab-top { flex-shrink: 0; overflow: visible; }
 
   /* ===== DEDUCTIONS TAB: No-scroll maximized layout ===== */
 
@@ -276,7 +278,6 @@
     #sp-summary .tab-top {
       width: 360px !important;
       min-width: 300px !important;
-      max-width: 400px !important;
       height: 100% !important;
       overflow-y: auto !important;
       border-right: 1px solid #e5e7eb !important;
@@ -290,7 +291,12 @@
       overflow-y: auto !important;
       padding: 16px 20px !important;
       background: #f0f0f0 !important;
+      display: flex !important;
+      flex-direction: column !important;
     }
+    /* On desktop: stats go in left panel, breakdown in right */
+    #sp-summary .tab-scroll #storeSummaryStats { display: none; }
+    #sp-summary .tab-top #storeSummaryStats { display: block !important; }
     #storeCreditSummaryCards {
       grid-template-columns: repeat(5, 1fr) !important;
       max-width: 100%;
@@ -635,7 +641,7 @@
 
   <!-- PANEL: Daily Log (staff input) -->
   <div id="sp-log" class="tab-section" style="flex-direction:column;">
-    <div class="tab-top" style="flex:1;overflow-y:auto;">
+    <div class="tab-top" style="flex:1;min-height:0;overflow-y:auto;">
       <div class="card">
         <div class="card-header"><span class="df" style="font-size:15px;font-weight:700;">🛒 Record Sales</span></div>
         <div class="card-body">
@@ -677,8 +683,6 @@
       </div>
     </div>
   </div>
-
-  <!-- PANEL: Staff Credits -->
   <div id="sp-credits" class="tab-section" style="flex-direction:column;">
     <div class="tab-top">
       <div class="card">
@@ -712,9 +716,11 @@
           </div>
         </div>
       </div>
-      <div id="storeSummaryStats"></div>
     </div>
-    <div class="tab-scroll"><div id="storeSummaryBreakdown"></div></div>
+    <div class="tab-scroll">
+      <div id="storeSummaryStats"></div>
+      <div id="storeSummaryBreakdown"></div>
+    </div>
   </div>
 
 </div>
@@ -2146,8 +2152,18 @@ function renderStoreSummary() {
   const totCustSold    = rows.reduce((s,r) => s + r.custSoldQty, 0);
   const totRemaining   = rows.reduce((s,r) => s + r.remaining, 0);
 
-  const stats     = document.getElementById('storeSummaryStats');
-  const breakdown = document.getElementById('storeSummaryBreakdown');
+  const statsEl    = document.getElementById('storeSummaryStats');
+  const breakdown  = document.getElementById('storeSummaryBreakdown');
+
+  // On desktop: move stats to tab-top left panel; on mobile: stays in tab-scroll
+  const isDesktop = window.innerWidth >= 768;
+  const tabTop    = document.querySelector('#sp-summary .tab-top');
+  if (isDesktop && tabTop && !tabTop.contains(statsEl)) {
+    tabTop.appendChild(statsEl);
+  } else if (!isDesktop && breakdown && breakdown.parentElement && !breakdown.parentElement.contains(statsEl)) {
+    breakdown.parentElement.insertBefore(statsEl, breakdown);
+  }
+  const stats = statsEl;
 
   // Capital & profit calculations
   const totCapital      = rows.reduce((s,r) => s + (r.costPrice||0) * r.initialQty, 0);
