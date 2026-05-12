@@ -2181,6 +2181,14 @@ function renderStoreSummary() {
   const totProfit       = totRevenue - totCapitalUsed;
 
   stats.innerHTML = `
+    <!-- Inventory toggle button — manager only -->
+    ${currentUser && currentUser.role === 'manager' ? `
+    <div style="margin-top:10px;margin-bottom:4px;">
+      <button onclick="toggleInventoryVisibility()" id="inventoryToggleBtn2"
+        style="width:100%;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:${appSettings.inventoryVisible?'#15803d':'#dc2626'};color:#fff;">
+        ${appSettings.inventoryVisible ? '👁 Staff CAN SEE inventory — tap to HIDE' : '🔒 Inventory HIDDEN from staff — tap to REVEAL'}
+      </button>
+    </div>` : ''}
     <!-- Top summary cards -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
       <div class="stat-card" style="background:#000;color:#fff;grid-column:span 2;">
