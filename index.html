@@ -249,6 +249,17 @@
     #sp-items, #sp-log, #sp-credits, #sp-summary { height: 100%; }
 
     /* Store items — 2 column grid */
+    /* Items panel: left-right split on desktop */
+    #sp-items { flex-direction: row !important; }
+    #sp-items .tab-top {
+      width: 360px !important;
+      min-width: 300px !important;
+      height: 100% !important;
+      overflow-y: auto !important;
+      border-right: 1px solid #e5e7eb !important;
+      border-bottom: none !important;
+    }
+    #sp-items .tab-scroll { flex: 1 !important; height: 100% !important; overflow-y: auto !important; }
     #itemList { display: grid; grid-template-columns: 1fr 1fr; }
     #itemList .row { border-right: 1px solid #f0f0f0; }
 
@@ -611,9 +622,7 @@
             <div class="field"><label>💰 Cost Price (₱)</label><input id="itemCostPrice" type="number" placeholder="0.00" class="inp" inputmode="decimal"></div>
             <div class="field"><label>👤 Staff Price (₱)</label><input id="itemStaffPrice" type="number" placeholder="0.00" class="inp" inputmode="decimal"></div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr;gap:10px;">
-            <div class="field"><label>🛒 Customer Price (₱)</label><input id="itemCustPrice" type="number" placeholder="0.00" class="inp" inputmode="decimal"></div>
-          </div>
+          <div class="field"><label>🛒 Customer Price (₱)</label><input id="itemCustPrice" type="number" placeholder="0.00" class="inp" inputmode="decimal"></div>
           <button onclick="addItem()" class="btn-primary">＋ Add Item</button>
         </div>
       </div>
