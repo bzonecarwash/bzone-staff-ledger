@@ -708,7 +708,10 @@
   <div id="sp-summary" class="tab-section active">
     <div class="tab-top">
       <div class="card">
-        <div class="card-header"><span class="df" style="font-size:15px;font-weight:700;">📊 Store Summary</span></div>
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+          <span class="df" style="font-size:15px;font-weight:700;">📊 Store Summary</span>
+          <button id="inventoryToggleBtn" onclick="toggleInventoryVisibility()" style="display:none;font-size:12px;font-weight:700;padding:5px 10px;border-radius:8px;border:none;cursor:pointer;">🔒 Hidden</button>
+        </div>
         <div class="card-body">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
             <div class="field"><label>From</label><input id="storeFrom" type="date" class="inp" onchange="renderStoreSummary()"></div>
@@ -807,7 +810,11 @@ const SUPA_URL = 'https://xeluvdciwlwmslwlskjl.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlbHV2ZGNpd2x3bXNsd2xza2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzMzE1NDgsImV4cCI6MjA5MzkwNzU0OH0.OgRmZuAAaO7juS3ustfXL4xMSpPNFtGSKWRZfpbLrVo';
 const SUPA_HEADERS = { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' };
 
-const KEYS = ['staff','attendance','tipPools','cashAdvances','sssDeductions','storeCredits','storeItems','storeLogs'];
+const KEYS = ['staff','attendance','tipPools','cashAdvances','sssDeductions','storeCredits','storeItems','storeLogs','settings'];
+
+// App settings (synced to cloud)
+let appSettings = JSON.parse(localStorage.getItem('settings') || '{}');
+// inventoryVisible: true = cashiers can see LEFT, false = hidden (default)
 
 let _lastUpdated = {}; // track last updated_at per key to detect changes
 let _pollInterval = null;
@@ -856,6 +863,7 @@ function applyCloudData(map, rerender = true) {
   if (map.storeCredits)  { const v = parse('storeCredits');  if (v) { storeCredits  = v; changed = true; } }
   if (map.storeItems)    { const v = parse('storeItems');    if (v) { storeItems    = v; changed = true; } }
   if (map.storeLogs)     { const v = parse('storeLogs');     if (v) { storeLogs     = v; changed = true; } }
+  if (map.settings)     { const v = parse('settings');     if (v) { appSettings = v; applyInventoryVisibility(); } }
   KEYS.forEach(k => { if (map[k]) localStorage.setItem(k, map[k]); });
   if (changed && rerender) {
     renderStaff(); renderAllSelects(); renderAttendance(); renderTips(); renderDeductions();
@@ -2254,7 +2262,7 @@ function renderStoreSummary() {
                 <div style="font-size:18px;font-weight:800;color:#92400e;">${r.credit}</div>
                 <div style="font-size:8px;color:#6b7280;font-weight:700;text-transform:uppercase;">👤 Credit</div>
               </div>
-              ${currentUser && currentUser.role !== 'manager'
+              ${(currentUser && currentUser.role !== 'manager' && !appSettings.inventoryVisible)
                 ? `<div style="background:#f3f4f6;border-radius:8px;padding:8px 4px;border:2px solid #d1d5db;">
                     <div style="font-size:18px;font-weight:800;color:#9ca3af;">🔒</div>
                     <div style="font-size:8px;color:#9ca3af;font-weight:700;text-transform:uppercase;">Left</div>
@@ -2266,8 +2274,7 @@ function renderStoreSummary() {
               }
             </div>
 
-            <!-- Formula — manager only -->
-            ${!currentUser || currentUser.role === 'manager' ? `
+            ${(!currentUser || currentUser.role === 'manager' || appSettings.inventoryVisible) ? `
             <div style="font-size:11px;color:#9ca3af;margin-top:6px;text-align:center;">
               ${r.initialQty} − ${r.custSold} 🛒 − ${r.staffCash} 💵 − ${r.credit} 👤 = <strong style="color:${r.remaining<=0?'#dc2626':r.remaining<=3?'#b45309':'#15803d'};">${r.remaining} left</strong>
             </div>` : ''}
@@ -2401,6 +2408,28 @@ function deleteSoldLog(logId) {
   renderDeductions();
 }
 
+function applyInventoryVisibility() {
+  const btn = document.getElementById('inventoryToggleBtn');
+  if (!btn) return;
+  const visible = appSettings.inventoryVisible === true;
+  if (currentUser && currentUser.role === 'manager') {
+    btn.style.display = 'inline-block';
+    btn.style.background = visible ? '#15803d' : '#dc2626';
+    btn.style.color = '#fff';
+    btn.textContent = visible ? '👁 Visible to Staff' : '🔒 Hidden from Staff';
+  } else {
+    btn.style.display = 'none';
+  }
+  // Re-render summary to apply change
+  if (document.getElementById('storeSummaryBreakdown')) renderStoreSummary();
+}
+
+function toggleInventoryVisibility() {
+  appSettings.inventoryVisible = !appSettings.inventoryVisible;
+  saveKey('settings', appSettings);
+  applyInventoryVisibility();
+}
+
 // ===== FACTORY RESET =====
 const RESET_PIN = '1234'; // Change this to your preferred PIN
 
@@ -2531,6 +2560,7 @@ function doLogin() {
     document.getElementById('appWrapper').classList.add('visible');
     document.getElementById('loginError').style.display = 'none';
     applyRoleRestrictions();
+    applyInventoryVisibility();
     testSupabaseConnection();
   } else {
     document.getElementById('loginError').style.display = 'block';
