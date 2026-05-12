@@ -2254,10 +2254,16 @@ function renderStoreSummary() {
                 <div style="font-size:18px;font-weight:800;color:#92400e;">${r.credit}</div>
                 <div style="font-size:8px;color:#6b7280;font-weight:700;text-transform:uppercase;">👤 Credit</div>
               </div>
-              <div style="background:${r.remaining <= 0 ? '#fef2f2' : r.remaining <= 3 ? '#fffbeb' : '#f0fdf4'};border-radius:8px;padding:8px 4px;border:2px solid ${r.remaining <= 0 ? '#fca5a5' : r.remaining <= 3 ? '#fcd34d' : '#86efac'};${currentUser && currentUser.role !== 'manager' ? 'filter:blur(6px);user-select:none;pointer-events:none;' : ''}">
-                <div style="font-size:18px;font-weight:800;color:${r.remaining <= 0 ? '#dc2626' : r.remaining <= 3 ? '#b45309' : '#15803d'};">${currentUser && currentUser.role !== 'manager' ? '?' : r.remaining}</div>
-                <div style="font-size:8px;color:#6b7280;font-weight:700;text-transform:uppercase;">Left</div>
-              </div>
+              ${currentUser && currentUser.role !== 'manager'
+                ? `<div style="background:#f3f4f6;border-radius:8px;padding:8px 4px;border:2px solid #d1d5db;">
+                    <div style="font-size:18px;font-weight:800;color:#9ca3af;">🔒</div>
+                    <div style="font-size:8px;color:#9ca3af;font-weight:700;text-transform:uppercase;">Left</div>
+                  </div>`
+                : `<div style="background:${r.remaining <= 0 ? '#fef2f2' : r.remaining <= 3 ? '#fffbeb' : '#f0fdf4'};border-radius:8px;padding:8px 4px;border:2px solid ${r.remaining <= 0 ? '#fca5a5' : r.remaining <= 3 ? '#fcd34d' : '#86efac'};">
+                    <div style="font-size:18px;font-weight:800;color:${r.remaining <= 0 ? '#dc2626' : r.remaining <= 3 ? '#b45309' : '#15803d'};">${r.remaining}</div>
+                    <div style="font-size:8px;color:#6b7280;font-weight:700;text-transform:uppercase;">Left</div>
+                  </div>`
+              }
             </div>
 
             <!-- Formula — manager only -->
