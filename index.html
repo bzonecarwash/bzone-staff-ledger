@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>BZONE Staff Ledger</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -415,7 +418,7 @@
     <button onclick="doLogin()" style="width:100%;padding:14px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:.02em;">
       Sign In
     </button>
-    <div style="text-align:center;margin-top:16px;font-size:11px;color:#374151;">Staff Ledger · Private Access Only</div>
+    <div style="text-align:center;margin-top:16px;font-size:11px;color:#374151;">Staff Ledger · Private Access Only · v2.5</div>
   </div>
 </div>
 
@@ -1005,7 +1008,7 @@ function showSyncStatus(msg, duration) {
   if (!el) {
     el = document.createElement('div');
     el.id = 'syncStatus';
-    el.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:8px 18px;border-radius:99px;font-size:13px;font-weight:600;z-index:9998;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.3);border:1px solid #dc2626;transition:opacity .3s;';
+    el.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:8px 18px;border-radius:99px;font-size:13px;font-weight:600;z-index:99999;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.3);border:1px solid #dc2626;transition:opacity .3s;pointer-events:none;';
     document.body.appendChild(el);
   }
   el.textContent = msg;
@@ -2589,6 +2592,7 @@ function doLogin() {
     applyRoleRestrictions();
     applyInventoryVisibility();
     testSupabaseConnection();
+    loadFromCloud();
   } else {
     document.getElementById('loginError').style.display = 'block';
     document.getElementById('loginPass').value = '';
@@ -2736,6 +2740,8 @@ if (savedSession && ACCOUNTS[savedSession]) {
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('appWrapper').classList.add('visible');
   applyRoleRestrictions();
+  applyInventoryVisibility();
+  loadFromCloud();
 }
 
 // ===== Initial render =====
@@ -2743,8 +2749,7 @@ try {
   renderStaff(); renderAllSelects(); renderAttendance(); renderTips(); renderDeductions();
   renderStoreItems(); renderLogItemSelect(); renderStoreLog(); renderStoreSummary(); renderStoreCredits();
 } catch(e) { console.warn('Initial render error:', e); }
-// Load from cloud (overwrites local if cloud has data)
-loadFromCloud();
+// Cloud load happens after login, not here
 </script>
 </body>
 </html>
