@@ -1039,20 +1039,25 @@ const fmtDate  = d => new Date(d+'T00:00').toLocaleDateString('en-PH',{month:'sh
 const getStaffName = id => (staff.find(x=>x.id===id)||{name:'Unknown'}).name;
 
 // ===== Initial setup =====
-document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
-document.getElementById('attDate').value = todayISO();
-document.getElementById('tipDate').value = todayISO();
-document.getElementById('caDate').value  = todayISO();
-document.getElementById('sssDate').value = todayISO();
-const firstOfMonth = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; })();
-document.getElementById('repFrom').value = firstOfMonth;
-document.getElementById('repTo').value   = todayISO();
-document.getElementById('detFrom').value = firstOfMonth;
-document.getElementById('detTo').value   = todayISO();
+try {
+  document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+  document.getElementById('attDate').value = todayISO();
+  document.getElementById('tipDate').value = todayISO();
+  document.getElementById('caDate').value  = todayISO();
+  document.getElementById('sssDate').value = todayISO();
+} catch(e) { console.warn('Init date setup:', e); }
 
-document.getElementById('logDate').value   = todayISO();
-document.getElementById('storeFrom').value = firstOfMonth;
-document.getElementById('storeTo').value   = todayISO();
+const firstOfMonth = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; })();
+
+try {
+  document.getElementById('repFrom').value = firstOfMonth;
+  document.getElementById('repTo').value   = todayISO();
+  document.getElementById('detFrom').value = firstOfMonth;
+  document.getElementById('detTo').value   = todayISO();
+  document.getElementById('logDate').value   = todayISO();
+  document.getElementById('storeFrom').value = firstOfMonth;
+  document.getElementById('storeTo').value   = todayISO();
+} catch(e) { console.warn('Init form setup:', e); }
 
 // ===== Bottom Nav =====
 document.querySelectorAll('#bottomNav button').forEach(btn => {
@@ -2734,8 +2739,10 @@ if (savedSession && ACCOUNTS[savedSession]) {
 }
 
 // ===== Initial render =====
-renderStaff(); renderAllSelects(); renderAttendance(); renderTips(); renderDeductions();
-renderStoreItems(); renderLogItemSelect(); renderStoreLog(); renderStoreSummary(); renderStoreCredits();
+try {
+  renderStaff(); renderAllSelects(); renderAttendance(); renderTips(); renderDeductions();
+  renderStoreItems(); renderLogItemSelect(); renderStoreLog(); renderStoreSummary(); renderStoreCredits();
+} catch(e) { console.warn('Initial render error:', e); }
 // Load from cloud (overwrites local if cloud has data)
 loadFromCloud();
 </script>
