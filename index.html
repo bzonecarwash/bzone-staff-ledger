@@ -863,7 +863,7 @@ function applyCloudData(map, rerender = true) {
   if (map.storeCredits)  { const v = parse('storeCredits');  if (v) { storeCredits  = v; changed = true; } }
   if (map.storeItems)    { const v = parse('storeItems');    if (v) { storeItems    = v; changed = true; } }
   if (map.storeLogs)     { const v = parse('storeLogs');     if (v) { storeLogs     = v; changed = true; } }
-  if (map.settings)     { const v = parse('settings');     if (v) { appSettings = v; applyInventoryVisibility(); } }
+  if (map.settings)     { const v = parse('settings');     if (v) { appSettings = v; if (currentUser) applyInventoryVisibility(); } }
   KEYS.forEach(k => { if (map[k]) localStorage.setItem(k, map[k]); });
   if (changed && rerender) {
     renderStaff(); renderAllSelects(); renderAttendance(); renderTips(); renderDeductions();
@@ -2434,8 +2434,8 @@ function applyInventoryVisibility() {
   } else {
     btn.style.display = 'none';
   }
-  // Re-render summary to apply change
-  if (document.getElementById('storeSummaryBreakdown')) renderStoreSummary();
+  // Re-render summary only if logged in and element exists
+  if (currentUser && document.getElementById('storeSummaryBreakdown')) renderStoreSummary();
 }
 
 function toggleInventoryVisibility() {
