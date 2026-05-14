@@ -830,6 +830,8 @@ const ACCOUNTS = {
   'joshua':  { display: 'Joshua Duaya',          password: 'joshua', role: 'viewer' },
   'frank':   { display: 'Frank Bautista Clifford', password: 'frank', role: 'viewer' },
 };
+let currentUser = null;
+let appSettings = JSON.parse(localStorage.getItem('settings') || '{}');
 
 // ===== SUPABASE CONFIG =====
 const SUPA_URL = 'https://xeluvdciwlwmslwlskjl.supabase.co';
@@ -838,9 +840,7 @@ const SUPA_HEADERS = { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY
 
 const KEYS = ['staff','attendance','tipPools','cashAdvances','sssDeductions','storeCredits','storeItems','storeLogs'];
 
-// App settings (synced to cloud)
-let appSettings = JSON.parse(localStorage.getItem('settings') || '{}');
-// inventoryVisible: true = cashiers can see LEFT, false = hidden (default)
+// App settings loaded at top of script
 
 let _lastUpdated = {}; // track last updated_at per key to detect changes
 let _pollInterval = null;
@@ -2591,8 +2591,6 @@ setTimeout(fixDesktopLayout, 100);
 
 // ===== LOGIN / SECURITY =====
 // Accounts: username (lowercase) → { display, password, role }
-let currentUser = null;
-
 function doLogin() {
   const username = document.getElementById('loginUser').value.trim().toLowerCase();
   const password = document.getElementById('loginPass').value;
