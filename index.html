@@ -821,6 +821,16 @@ let storeItems   = JSON.parse(localStorage.getItem('storeItems')    || '[]');
 let storeLogs    = JSON.parse(localStorage.getItem('storeLogs')     || '[]'); // pending + approved daily logs
 // storeLogs entry: { id, date, staffId, entries:[{itemId,received,sold,creditStaffId,creditQty,creditAmt}], status:'pending'|'approved'|'rejected', submittedAt }
 
+// ===== ACCOUNTS — must be first =====
+const ACCOUNTS = {
+  'boss b':  { display: 'Boss B',               password: '1007', role: 'manager' },
+  'julius':  { display: 'Julius Palmes',         password: '2283', role: 'encoder' },
+  'angelo':  { display: 'Mark Angelo Salamanca', password: '3382', role: 'encoder' },
+  'kevin':   { display: 'Kevin John Alib',       password: 'kevin',  role: 'viewer' },
+  'joshua':  { display: 'Joshua Duaya',          password: 'joshua', role: 'viewer' },
+  'frank':   { display: 'Frank Bautista Clifford', password: 'frank', role: 'viewer' },
+};
+
 // ===== SUPABASE CONFIG =====
 const SUPA_URL = 'https://xeluvdciwlwmslwlskjl.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlbHV2ZGNpd2x3bXNsd2xza2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzMzE1NDgsImV4cCI6MjA5MzkwNzU0OH0.OgRmZuAAaO7juS3ustfXL4xMSpPNFtGSKWRZfpbLrVo';
@@ -2581,15 +2591,6 @@ setTimeout(fixDesktopLayout, 100);
 
 // ===== LOGIN / SECURITY =====
 // Accounts: username (lowercase) → { display, password, role }
-const ACCOUNTS = {
-  'boss b':  { display: 'Boss B',               password: '1007', role: 'manager' },
-  'julius':  { display: 'Julius Palmes',         password: '2283', role: 'encoder' },
-  'angelo':  { display: 'Mark Angelo Salamanca', password: '3382', role: 'encoder' },
-  'kevin':   { display: 'Kevin John Alib',         password: 'kevin',  role: 'viewer'  },
-  'joshua':  { display: 'Joshua Duaya',            password: 'joshua', role: 'viewer'  },
-  'frank':   { display: 'Frank Bautista Clifford', password: 'frank',  role: 'viewer'  },
-};
-
 let currentUser = null;
 
 function doLogin() {
