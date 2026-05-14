@@ -415,10 +415,10 @@
         <button onclick="togglePass()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:#6b7280;cursor:pointer;font-size:18px;" id="passToggleBtn">👁</button>
       </div>
     </div>
-    <button onclick="doLogin()" style="width:100%;padding:14px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:.02em;">
+    <button id="signInBtn" style="width:100%;padding:14px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:.02em;-webkit-tap-highlight-color:transparent;">
       Sign In
     </button>
-    <div style="text-align:center;margin-top:16px;font-size:11px;color:#374151;">Staff Ledger · Private Access Only · v2.5</div>
+    <div style="text-align:center;margin-top:16px;font-size:11px;color:#374151;">Staff Ledger · Private Access Only · v2.6</div>
   </div>
 </div>
 
@@ -2743,6 +2743,15 @@ if (savedSession && ACCOUNTS[savedSession]) {
   applyInventoryVisibility();
   loadFromCloud();
 }
+
+// ===== Wire login button (reliable for mobile) =====
+document.addEventListener('DOMContentLoaded', function() {
+  const btn = document.getElementById('signInBtn');
+  if (btn) {
+    btn.addEventListener('click', doLogin);
+    btn.addEventListener('touchend', function(e) { e.preventDefault(); doLogin(); });
+  }
+});
 
 // ===== Initial render =====
 try {
