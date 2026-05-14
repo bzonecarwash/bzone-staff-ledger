@@ -395,7 +395,12 @@ if ('caches' in window) {
     display: flex; align-items: center; justify-content: center;
     padding: 24px;
   }
-  #loginScreen.hidden { display: none; }
+  #loginScreen.hidden { 
+    display: none !important; 
+    pointer-events: none !important;
+    visibility: hidden !important;
+    z-index: -1 !important;
+  }
   #appWrapper { display: none; flex-direction: column; height: 100%; }
   #appWrapper.visible { display: flex; }
 </style>
@@ -2601,9 +2606,10 @@ function doLogin() {
     if (account && account.password === password) {
       currentUser = { username, ...account };
       sessionStorage.setItem('loggedIn', username);
-      document.getElementById('loginScreen').classList.add('hidden');
+      // Remove loginScreen from DOM entirely
+      const ls = document.getElementById('loginScreen');
+      if (ls) ls.parentNode.removeChild(ls);
       document.getElementById('appWrapper').classList.add('visible');
-      errEl.style.display = 'none';
       applyRoleRestrictions();
       applyInventoryVisibility();
       testSupabaseConnection();
@@ -2743,20 +2749,17 @@ function logout() {
   sessionStorage.removeItem('loggedIn');
   currentUser = null;
   resetRoleRestrictions();
-  document.getElementById('loginUser').value = '';
-  document.getElementById('loginPass').value = '';
-  document.getElementById('loginError').style.display = 'none';
-  document.getElementById('loginScreen').classList.remove('hidden');
-  document.getElementById('appWrapper').classList.remove('visible');
-  // Stop polling while logged out
   if (_pollInterval) { clearInterval(_pollInterval); _pollInterval = null; }
+  // Reload the page — cleanest way to show login screen again
+  window.location.reload();
 }
 
 // Check session on load (so refresh doesn't kick you out within same session)
 const savedSession = sessionStorage.getItem('loggedIn');
 if (savedSession && ACCOUNTS[savedSession]) {
   currentUser = { username: savedSession, ...ACCOUNTS[savedSession] };
-  document.getElementById('loginScreen').classList.add('hidden');
+  const ls = document.getElementById('loginScreen');
+  if (ls) ls.parentNode.removeChild(ls);
   document.getElementById('appWrapper').classList.add('visible');
   applyRoleRestrictions();
   applyInventoryVisibility();
