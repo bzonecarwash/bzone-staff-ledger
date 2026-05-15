@@ -388,6 +388,10 @@ if ('caches' in window) {
     50%       { opacity: 0.65; }
   }
 
+  /* Hide manager-only buttons when body has staff-only class */
+  body.staff-only .item-mgr-btn,
+  body.staff-only .item-del-btn { display: none !important; }
+
   #loginScreen {
     position: fixed; inset: 0; z-index: 9999;
     background: #000;
@@ -2738,6 +2742,7 @@ function applyRoleRestrictions() {
 
   // ── ENCODER (Julius, Angelo): Tips + Store + Details ──
   if (role === 'encoder') {
+    document.body.classList.add('staff-only');
     ['staff','attendance','deductions','reports'].forEach(tab => {
       const btn = document.querySelector(`#bottomNav button[data-tab="${tab}"]`);
       if (btn) btn.style.display = 'none';
@@ -2762,6 +2767,7 @@ function applyRoleRestrictions() {
 
   // ── VIEWER (Kevin, Joshua, Frank): Tips (view only) + Store Credits + Details ──
   else if (role === 'viewer') {
+    document.body.classList.add('staff-only');
     ['staff','attendance','deductions','reports'].forEach(tab => {
       const btn = document.querySelector(`#bottomNav button[data-tab="${tab}"]`);
       if (btn) btn.style.display = 'none';
@@ -2784,6 +2790,7 @@ function applyRoleRestrictions() {
 
   // ── MANAGER: full access ──
   else {
+    document.body.classList.remove('staff-only');
     window._staffCannotDelete = false;
     window._lockTipDate       = false;
     window._tipViewOnly       = false;
@@ -2800,6 +2807,7 @@ function applyRoleRestrictions() {
 }
 
 function resetRoleRestrictions() {
+  document.body.classList.remove('staff-only');
   // Show all nav tabs
   ['staff','attendance','tips','deductions','store','details','reports'].forEach(tab => {
     const btn = document.querySelector(`#bottomNav button[data-tab="${tab}"]`);
