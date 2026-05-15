@@ -1058,26 +1058,37 @@ function showSyncIndicator(online) {
 }
 
 const peso = n => '₱' + (n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+// ===== ALL DATES USE MANILA (Asia/Manila) TIMEZONE =====
+// This ignores the device's local time and forces Philippines time
+const MANILA_TZ = 'Asia/Manila';
+
 const todayISO = () => {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
-  const day = String(d.getDate()).padStart(2,'0');
-  return `${y}-${m}-${day}`;
+  // Get current Manila date as YYYY-MM-DD regardless of device timezone
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: MANILA_TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date());
+  const y = parts.find(p => p.type === 'year').value;
+  const m = parts.find(p => p.type === 'month').value;
+  const d = parts.find(p => p.type === 'day').value;
+  return `${y}-${m}-${d}`;
 };
-const fmtDate  = d => new Date(d+'T00:00').toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+const fmtDate  = d => new Date(d+'T00:00:00+08:00').toLocaleDateString('en-PH',{timeZone:MANILA_TZ,month:'short',day:'numeric',year:'numeric'});
 const getStaffName = id => (staff.find(x=>x.id===id)||{name:'Unknown'}).name;
 
 // ===== Initial setup =====
 try {
-  document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+  document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-PH',{timeZone:MANILA_TZ,month:'short',day:'numeric',year:'numeric'});
   document.getElementById('attDate').value = todayISO();
   document.getElementById('tipDate').value = todayISO();
   document.getElementById('caDate').value  = todayISO();
   document.getElementById('sssDate').value = todayISO();
 } catch(e) { console.warn('Init date setup:', e); }
 
-const firstOfMonth = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; })();
+const firstOfMonth = (() => {
+  const t = todayISO();
+  return t.substring(0,7) + '-01';
+})();
 
 try {
   document.getElementById('repFrom').value = firstOfMonth;
@@ -2006,7 +2017,7 @@ function addLogEntry() {
     id: Date.now(), date, staffId,
     entries: [{ itemId, received, sold: totalDepleted, creditStaffId, creditQty, creditAmt, custSoldQty, cashStaffId, cashStaffQty }],
     status: 'approved',
-    submittedAt: new Date().toLocaleString('en-PH')
+    submittedAt: new Date().toLocaleString('en-PH', { timeZone: MANILA_TZ })
   });
 
   // Auto-post staff credit to deductions
@@ -2502,9 +2513,9 @@ function restockItem(itemId) {
   // Record restock history
   if (!item.restockHistory) item.restockHistory = [];
   item.restockHistory.push({
-    date: new Date().toISOString().split('T')[0],
+    date: todayISO(),
     qty: newQty, costPerUnit: newCost, totalCapital,
-    ts: new Date().toLocaleString('en-PH')
+    ts: new Date().toLocaleString('en-PH', { timeZone: MANILA_TZ })
   });
 
   // Clear sold logs for this item
@@ -2719,7 +2730,7 @@ function applyRoleRestrictions() {
   // Show logged-in user in header
   const dateEl = document.getElementById('todayDate');
   if (dateEl) {
-    dateEl.innerHTML = new Date().toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) +
+    dateEl.innerHTML = new Date().toLocaleDateString('en-PH',{timeZone:MANILA_TZ,month:'short',day:'numeric',year:'numeric'}) +
       `<div style="font-size:10px;color:#dc2626;font-weight:700;margin-top:1px;">👤 ${currentUser.display}</div>`;
   }
 
