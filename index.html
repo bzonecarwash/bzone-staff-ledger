@@ -2356,28 +2356,107 @@ function renderStoreSummary() {
 
     ${!approved.length ? `<div style="font-size:12px;color:#9ca3af;text-align:center;padding:8px;">No sales logged yet — Total Inventory comes from the Items tab. Use 📦 Edit Stock to update.</div>` : ''}
 
-    <!-- Sold History — manager only, with delete per entry -->
-    ${!window._staffCannotDelete && approved.length ? `
-    <div class="section-title" style="margin-top:10px;">📋 Sold History
-      <span style="font-size:11px;color:#9ca3af;font-weight:400;margin-left:6px;">(Manager: tap ✕ to remove wrong entries)</span>
-    </div>
-    <div class="card" style="margin-bottom:10px;">
-      ${[...approved].reverse().map(log => log.entries.map(e => {
-        const item = storeItems.find(i => i.id === e.itemId);
-        const parts = [];
-        if (e.custSoldQty > 0) parts.push(`🛒 ${e.custSoldQty} customer`);
-        if (e.cashStaffQty > 0) parts.push(`💵 ${e.cashStaffQty} staff cash`);
-        if (e.creditQty > 0) parts.push(`👤 ${e.creditQty} credit`);
-        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #f5f5f5;">
-          <div>
-            <div style="font-weight:700;font-size:14px;color:#111;">${item ? item.name : 'Unknown'}</div>
-            <div style="font-size:12px;color:#6b7280;">${fmtDate(log.date)} · by ${getStaffName(log.staffId)}</div>
-            <div style="font-size:12px;color:#374151;margin-top:2px;">${parts.join(' · ') || 'No qty'}</div>
+    <!-- Sold History — manager only, with filters + delete per entry -->
+    ${currentUser && currentUser.role === 'manager' && approved.length ? (() => {
+      const histFrom    = window._histFrom    || '';
+      const histTo      = window._histTo      || '';
+      const histType    = window._histType    || 'all';
+      const histItem    = window._histItem    || 'all';
+
+      // Flatten all entries with parent log info
+      let entries = [];
+      approved.forEach(log => log.entries.forEach(e => entries.push({...e, _date: log.date, _staffId: log.staffId, _logId: log.id})));
+
+      // Apply filters
+      if (histFrom)  entries = entries.filter(e => e._date >= histFrom);
+      if (histTo)    entries = entries.filter(e => e._date <= histTo);
+      if (histItem !== 'all') entries = entries.filter(e => e.itemId === parseInt(histItem));
+      if (histType === 'customer')   entries = entries.filter(e => (e.custSoldQty||0) > 0);
+      if (histType === 'staffCash')  entries = entries.filter(e => (e.cashStaffQty||0) > 0);
+      if (histType === 'credit')     entries = entries.filter(e => (e.creditQty||0) > 0);
+
+      // Tally totals for the filtered range
+      const tCustomer = entries.reduce((s,e) => s + (e.custSoldQty||0), 0);
+      const tStaffCash= entries.reduce((s,e) => s + (e.cashStaffQty||0), 0);
+      const tCredit   = entries.reduce((s,e) => s + (e.creditQty||0), 0);
+      const tCreditAmt= entries.reduce((s,e) => s + (e.creditAmt||0), 0);
+
+      // Sort entries newest first
+      entries.sort((a,b) => b._date.localeCompare(a._date));
+
+      return `
+      <div class="section-title" style="margin-top:10px;">📋 Sold History
+        <span style="font-size:11px;color:#9ca3af;font-weight:400;margin-left:6px;">(Manager: filter & remove)</span>
+      </div>
+
+      <!-- FILTER controls -->
+      <div class="card" style="margin-bottom:8px;">
+        <div class="card-body" style="padding:10px 13px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+            <div class="field" style="margin-bottom:0;"><label>From</label><input type="date" value="${histFrom}" class="inp" onchange="window._histFrom=this.value; renderStoreSummary();"></div>
+            <div class="field" style="margin-bottom:0;"><label>To</label><input type="date" value="${histTo}" class="inp" onchange="window._histTo=this.value; renderStoreSummary();"></div>
           </div>
-          <button onclick="deleteSoldLog(${log.id})" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;margin-left:10px;">✕ Remove</button>
-        </div>`;
-      }).join('')).join('')}
-    </div>` : ''}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="field" style="margin-bottom:0;">
+              <label>Type</label>
+              <select class="inp" onchange="window._histType=this.value; renderStoreSummary();">
+                <option value="all"${histType==='all'?' selected':''}>All Types</option>
+                <option value="customer"${histType==='customer'?' selected':''}>🛒 Customer Only</option>
+                <option value="staffCash"${histType==='staffCash'?' selected':''}>💵 Staff Cash Only</option>
+                <option value="credit"${histType==='credit'?' selected':''}>👤 Credit Only</option>
+              </select>
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label>Item</label>
+              <select class="inp" onchange="window._histItem=this.value; renderStoreSummary();">
+                <option value="all"${histItem==='all'?' selected':''}>All Items</option>
+                ${storeItems.map(i => `<option value="${i.id}"${histItem===String(i.id)?' selected':''}>${i.name}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          ${(histFrom||histTo||histType!=='all'||histItem!=='all') ? `
+          <button onclick="window._histFrom='';window._histTo='';window._histType='all';window._histItem='all';renderStoreSummary();" style="margin-top:8px;width:100%;padding:8px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">✕ Clear Filters</button>` : ''}
+        </div>
+      </div>
+
+      <!-- TOTALS for filtered range -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;">
+        <div style="background:#ecfdf5;border:1px solid #86efac;border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:#047857;">${tCustomer}</div>
+          <div style="font-size:9px;color:#374151;font-weight:700;text-transform:uppercase;">🛒 Customer</div>
+        </div>
+        <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:#1d4ed8;">${tStaffCash}</div>
+          <div style="font-size:9px;color:#374151;font-weight:700;text-transform:uppercase;">💵 Staff Cash</div>
+        </div>
+        <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:#dc2626;">${tCredit}</div>
+          <div style="font-size:9px;color:#374151;font-weight:700;text-transform:uppercase;">👤 ${peso(tCreditAmt)}</div>
+        </div>
+      </div>
+
+      <!-- HISTORY list -->
+      <div class="card" style="margin-bottom:10px;">
+        ${entries.length === 0
+          ? '<div style="padding:20px;text-align:center;color:#9ca3af;font-size:13px;">No entries match these filters.</div>'
+          : entries.map(e => {
+            const item = storeItems.find(i => i.id === e.itemId);
+            const parts = [];
+            if (e.custSoldQty > 0)  parts.push(`🛒 ${e.custSoldQty} customer`);
+            if (e.cashStaffQty > 0) parts.push(`💵 ${e.cashStaffQty} staff cash`);
+            if (e.creditQty > 0)    parts.push(`👤 ${e.creditQty} credit`);
+            return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #f5f5f5;">
+              <div>
+                <div style="font-weight:700;font-size:14px;color:#111;">${item ? item.name : 'Unknown'}</div>
+                <div style="font-size:12px;color:#6b7280;">${fmtDate(e._date)} · by ${getStaffName(e._staffId)}</div>
+                <div style="font-size:12px;color:#374151;margin-top:2px;">${parts.join(' · ') || 'No qty'}</div>
+              </div>
+              <button onclick="deleteSoldLog(${e._logId})" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;margin-left:10px;">✕ Remove</button>
+            </div>`;
+          }).join('')
+        }
+      </div>`;
+    })() : ''}
   `;
 }
 
