@@ -1923,8 +1923,8 @@ function renderStoreItems() {
         </div>
       </div>
       <div class="row-right" style="flex-direction:column;gap:6px;align-items:flex-end;">
-        <button class="mini-btn" onclick="editItemStock(${item.id})" style="background:#dc2626;color:#fff;border-color:#dc2626;">🔄 Restock</button>
-        <button class="mini-btn" onclick="editItem(${item.id})" style="background:#1d4ed8;color:#fff;border-color:#1d4ed8;">✏️ Edit</button>
+        <button class="mini-btn item-mgr-btn" onclick="editItemStock(${item.id})" style="background:#dc2626;color:#fff;border-color:#dc2626;">🔄 Restock</button>
+        <button class="mini-btn item-mgr-btn" onclick="editItem(${item.id})" style="background:#1d4ed8;color:#fff;border-color:#1d4ed8;">✏️ Edit</button>
         <button class="del-btn item-del-btn" onclick="removeItem(${item.id})">🗑</button>
       </div>
     </div>`).join('');
@@ -2745,6 +2745,7 @@ function applyRoleRestrictions() {
     const resetBtn = document.querySelector('button[onclick="showResetModal()"]');
     if (resetBtn) resetBtn.style.display = 'none';
     document.querySelectorAll('.item-del-btn').forEach(b => b.style.display = 'none');
+    document.querySelectorAll('.item-mgr-btn').forEach(b => b.style.display = 'none');
     window._lockTipDate = true;
     window._staffCannotDelete = true;
     // Lock the Sold tab date to today
@@ -2768,6 +2769,7 @@ function applyRoleRestrictions() {
     const resetBtn = document.querySelector('button[onclick="showResetModal()"]');
     if (resetBtn) resetBtn.style.display = 'none';
     document.querySelectorAll('.item-del-btn').forEach(b => b.style.display = 'none');
+    document.querySelectorAll('.item-mgr-btn').forEach(b => b.style.display = 'none');
     window._staffCannotDelete = true;
     window._tipViewOnly = true;
     window._storeCreditsOnly = true;
@@ -2788,6 +2790,7 @@ function applyRoleRestrictions() {
     window._storeCreditsOnly  = false;
     // Show all delete buttons
     document.querySelectorAll('.item-del-btn').forEach(b => b.style.display = '');
+    document.querySelectorAll('.item-mgr-btn').forEach(b => b.style.display = '');
     // Show Push button for manager
     const pushBtn = document.getElementById('pushCloudBtn');
     if (pushBtn) pushBtn.style.display = 'flex';
@@ -2839,6 +2842,7 @@ function resetRoleRestrictions() {
   window._storeCreditsOnly  = false;
   // Show all delete buttons
   document.querySelectorAll('.item-del-btn').forEach(b => b.style.display = '');
+  document.querySelectorAll('.item-mgr-btn').forEach(b => b.style.display = '');
 }
 
 function _switchToTab(tabName) {
