@@ -551,6 +551,54 @@ if ('caches' in window) {
   </div>
 </div>
 
+<!-- Restock modal -->
+<div id="restockModal" style="display:none; position:fixed; inset:0; z-index:999; background:rgba(0,0,0,0.75); align-items:center; justify-content:center; padding:24px;">
+  <div style="background:#fff; border-radius:16px; padding:24px; max-width:420px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+    <div style="text-align:center; margin-bottom:18px;">
+      <div style="font-size:36px; margin-bottom:6px;">🔄</div>
+      <div class="df" style="font-size:20px; font-weight:700; color:#111;">Restock Item</div>
+      <div style="font-size:16px; font-weight:600; color:#374151; margin-top:4px;" id="restockItemName">ITEM</div>
+    </div>
+
+    <!-- Current state -->
+    <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:10px; padding:12px; margin-bottom:14px;">
+      <div style="font-size:12px; color:#6b7280; margin-bottom:4px;">CURRENT STATE (will reset):</div>
+      <div style="display:flex; justify-content:space-between; padding:4px 0; font-size:13px;">
+        <span style="color:#6b7280;">Stock:</span>
+        <span class="df" style="font-weight:700; color:#111;" id="restockCurrent">0</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; padding:4px 0; font-size:13px;">
+        <span style="color:#6b7280;">Remaining:</span>
+        <span class="df" style="font-weight:700; color:#15803d;" id="restockRemaining">0</span>
+      </div>
+    </div>
+
+    <!-- New qty input -->
+    <div style="margin-bottom:10px;">
+      <label style="font-size:12px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:.05em;">New Stock Quantity</label>
+      <input id="restockNewQty" type="number" min="1" placeholder="e.g. 30 (leftover + new)" class="inp" style="margin-top:4px; font-size:18px; text-align:center;">
+      <div style="font-size:11px; color:#6b7280; margin-top:4px;">💡 Enter total: remaining + new stock you bought</div>
+    </div>
+
+    <!-- Cost input -->
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:.05em;">Cost Price per Unit (₱)</label>
+      <input id="restockNewCost" type="number" step="0.01" min="0" placeholder="0.00" class="inp" style="margin-top:4px; font-size:18px; text-align:center;">
+    </div>
+
+    <!-- Info box -->
+    <div style="background:#fef3c7; border:1px solid #fbbf24; border-radius:8px; padding:10px; margin-bottom:14px; font-size:12px; color:#78350f;">
+      <strong>✅ What happens:</strong><br>
+      • Summary counters reset to 0<br>
+      • Sold History preserved (audit trail)<br>
+      • Store credits preserved (payroll safe)
+    </div>
+
+    <button onclick="confirmRestock()" style="width:100%; padding:14px; background:#15803d; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:8px;">✅ Confirm Restock</button>
+    <button onclick="hideRestockModal()" style="width:100%; padding:12px; background:#f3f4f6; color:#374151; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer;">Cancel</button>
+  </div>
+</div>
+
 <div id="appBody">
 
 <!-- STAFF TAB -->
@@ -2315,9 +2363,37 @@ function renderStoreSummary() {
   // Build per-item totals
   const totals = {};
   storeItems.forEach(i => {
+    // Determine the stock quantity that was valid for the TO date
+    // Walk through restock history to find what qty was at that time
+    let historicalQty = parseInt(i.qty) || 0;
+    if (i.restockHistory && i.restockHistory.length > 0) {
+      // Sort restock history by date ascending
+      const sorted = [...i.restockHistory].sort((a,b) => a.date.localeCompare(b.date));
+      
+      // Find the appropriate qty for TO date
+      let found = false;
+      for (let j = 0; j < sorted.length; j++) {
+        const r = sorted[j];
+        if (r.date > to) {
+          // This restock happened after TO date — use previous state
+          if (j > 0) {
+            // Use the qty from previous restock
+            historicalQty = sorted[j-1].newQty || sorted[j-1].qty || historicalQty;
+          } else {
+            // TO date is before first restock — use prevQty of first restock
+            historicalQty = r.prevQty || r.qty || historicalQty;
+          }
+          found = true;
+          break;
+        }
+      }
+      // If we didn't break (all restocks are before or on TO date), use current qty
+      if (!found) historicalQty = parseInt(i.qty) || 0;
+    }
+    
     totals[i.id] = {
       name: i.name,
-      initialQty:  parseInt(i.qty) || 0,
+      initialQty:  historicalQty,  // Historical qty for this date range
       costPrice:   i.costPrice  || 0,
       staffPrice:  i.staffPrice || 0,
       custPrice:   i.custPrice  || 0,
@@ -2344,10 +2420,26 @@ function renderStoreSummary() {
   });
 
   // Tally lifetime totals (up to TO date) for accurate LEFT calculation
+  // Respect the appropriate restock cutoff for each item based on TO date
   lifetimeApproved.forEach(log => {
     log.entries.forEach(e => {
       const t = totals[e.itemId];
       if (!t) return;
+      const item = storeItems.find(i => i.id === e.itemId);
+      if (!item) return;
+      
+      // Find the appropriate restock cutoff for the TO date
+      let cutoffDate = null;
+      if (item.restockHistory && item.restockHistory.length > 0) {
+        // Find the most recent restock that happened on or before TO date
+        const sorted = [...item.restockHistory].sort((a,b) => b.date.localeCompare(a.date));
+        const relevant = sorted.find(r => r.date <= to);
+        if (relevant) cutoffDate = relevant.date;
+      }
+      
+      // Skip logs from before the restock cutoff (if one applies)
+      if (cutoffDate && log.date < cutoffDate) return;
+      
       t.lifeCustSold  += e.custSoldQty  || 0;
       t.lifeStaffCash += e.cashStaffQty || 0;
       t.lifeCredit    += e.creditQty    || 0;
@@ -2721,64 +2813,86 @@ function renderStoreSummary() {
   `;
 }
 
-// ── Restock item — resets inventory to new quantity, clears sold history ──
+// ── Restock item — sets new stock baseline, preserves all history ──
 function restockItem(itemId) {
   const item = storeItems.find(i => i.id === itemId);
   if (!item) return;
   const current = parseInt(item.qty) || 0;
-  const soldTotal = storeLogs.filter(l => l.status === 'approved')
+  
+  // Calculate current remaining based on sales since last restock (or all time if never restocked)
+  const cutoffDate = item.restockedAt || '2000-01-01';
+  const soldSinceRestock = storeLogs.filter(l => l.status === 'approved' && l.date >= cutoffDate)
     .flatMap(l => l.entries).filter(e => e.itemId === itemId)
     .reduce((s, e) => s + (e.custSoldQty || 0) + (e.creditQty || 0) + (e.cashStaffQty || 0), 0);
-  const remaining = Math.max(0, current - soldTotal);
+  const remaining = Math.max(0, current - soldSinceRestock);
 
-  const newQtyVal = prompt(
-    `🔄 Restock "${item.name}"\n` +
-    `Current stock: ${current} | Remaining: ${remaining}\n\n` +
-    `Enter the NEW stock quantity:`, ''
-  );
-  if (newQtyVal === null) return;
+  // Show modal
+  document.getElementById('restockItemName').textContent = item.name;
+  document.getElementById('restockCurrent').textContent = current;
+  document.getElementById('restockRemaining').textContent = remaining;
+  document.getElementById('restockNewQty').value = '';
+  document.getElementById('restockNewCost').value = item.costPrice || 0;
+  document.getElementById('restockModal').style.display = 'flex';
+  
+  // Store itemId for confirmation
+  window._restockItemId = itemId;
+}
+
+function hideRestockModal() {
+  document.getElementById('restockModal').style.display = 'none';
+}
+
+function confirmRestock() {
+  const itemId = window._restockItemId;
+  const item = storeItems.find(i => i.id === itemId);
+  if (!item) return;
+  
+  const newQtyVal = document.getElementById('restockNewQty').value;
+  const newCostVal = document.getElementById('restockNewCost').value;
+  
   const newQty = parseInt(newQtyVal);
-  if (isNaN(newQty) || newQty <= 0) { alert('Enter a valid number greater than 0'); return; }
-
-  // Ask for cost price per unit
-  const costVal = prompt(
-    `💰 Cost price per unit for this batch?\n` +
-    `(Leave 0 if using existing cost price: ${peso(item.costPrice || 0)})`, item.costPrice || 0
-  );
-  if (costVal === null) return;
-  const newCost = parseFloat(costVal) || item.costPrice || 0;
+  if (isNaN(newQty) || newQty <= 0) {
+    alert('Enter a valid stock quantity greater than 0');
+    return;
+  }
+  
+  const newCost = parseFloat(newCostVal) || item.costPrice || 0;
   const totalCapital = newCost * newQty;
-
+  
   if (!confirm(
-    `Restock "${item.name}"?\n\n` +
-    `✅ New stock: ${newQty} units\n` +
-    `💰 Cost: ${peso(newCost)} × ${newQty} = ${peso(totalCapital)} capital\n` +
-    `🗑 Previous sold logs cleared\n\nContinue?`
+    `🔄 Restock "${item.name}"?\n\n` +
+    `New stock: ${newQty} units\n` +
+    `Cost: ${peso(newCost)} × ${newQty} = ${peso(totalCapital)}\n\n` +
+    `✅ Summary counters reset to 0\n` +
+    `✅ Sold History preserved\n` +
+    `✅ Store credits preserved\n\nContinue?`
   )) return;
-
-  // Update item
+  
+  // Update item with new stock and restock date
+  const oldQty = item.qty;  // Save old qty for history
   item.qty = newQty;
   if (newCost > 0) item.costPrice = newCost;
-
-  // Record restock history
+  item.restockedAt = todayISO();  // This is the cutoff date for Summary calculations
+  
+  // Record restock in history (including old qty for historical reconstruction)
   if (!item.restockHistory) item.restockHistory = [];
   item.restockHistory.push({
     date: todayISO(),
-    qty: newQty, costPerUnit: newCost, totalCapital,
+    prevQty: oldQty,  // Stock before this restock
+    newQty: newQty,   // Stock after this restock
+    costPerUnit: newCost,
+    totalCapital,
     ts: new Date().toLocaleString('en-PH', { timeZone: MANILA_TZ })
   });
-
-  // Clear sold logs for this item
-  storeLogs.forEach(log => { log.entries = log.entries.filter(e => e.itemId !== itemId); });
-  storeLogs = storeLogs.filter(l => l.entries.length > 0);
-  storeCredits = storeCredits.filter(c => !c.note || !c.note.includes(item.name));
-
+  
+  // DO NOT delete sold logs — they're preserved for audit
+  // DO NOT delete store credits — payroll deductions preserved
+  
   save();
+  hideRestockModal();
   renderStoreItems();
   renderStoreSummary();
-  renderStoreCredits();
-  renderDeductions();
-  alert(`✅ Restocked! ${item.name} = ${newQty} units. Capital invested: ${peso(totalCapital)}`);
+  alert(`✅ Restocked! ${item.name} = ${newQty} units\nCapital: ${peso(totalCapital)}\nSummary counters reset, history preserved.`);
 }
 
 // ── Delete a specific sold log entry ──
