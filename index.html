@@ -2590,10 +2590,19 @@ function renderStoreSummary() {
       const tCredit   = entries.reduce((s,e) => s + (e.creditQty||0), 0);
       const tCreditAmt= entries.reduce((s,e) => s + (e.creditAmt||0), 0);
 
-      // Sort entries newest first (by timestamp if available, otherwise by date)
+      // Sort entries newest first — parse timestamps into real Date objects for accurate chronological sort
       entries.sort((a,b) => {
-        if (a._ts && b._ts) return b._ts.localeCompare(a._ts);
-        return b._date.localeCompare(a._date);
+        // Build sortable timestamp: prefer the submission timestamp; fallback to date midnight
+        const parseTs = (e) => {
+          if (e._ts) {
+            const d = new Date(e._ts);
+            if (!isNaN(d.getTime())) return d.getTime();
+          }
+          // Fallback: use entry date at midnight
+          const d2 = new Date(e._date + 'T00:00:00+08:00');
+          return isNaN(d2.getTime()) ? 0 : d2.getTime();
+        };
+        return parseTs(b) - parseTs(a);  // descending: newest first
       });
 
       // Calculate total revenue for filtered range
