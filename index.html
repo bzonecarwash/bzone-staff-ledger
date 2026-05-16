@@ -2351,7 +2351,7 @@ function renderStoreSummary() {
       staffCash:      t.cashStaffQty,
       staffCreditAmt: creditAmtFromStore || t.staffCreditAmt,
       remaining:      Math.max(0, t.initialQty - t.custSoldQty - t.staffCreditQty - t.cashStaffQty),
-      cashRevenue:    (t.custSoldQty + t.cashStaffQty) * t.custPrice,
+      cashRevenue:    (t.custSoldQty * t.custPrice) + (t.cashStaffQty * t.staffPrice),
     };
   });
 
