@@ -2306,7 +2306,11 @@ function renderStoreSummary() {
   const from    = document.getElementById('storeFrom').value;
   const to      = document.getElementById('storeTo').value;
 
+  // Date-filtered logs (for the 3 sold boxes and revenue cards)
   const approved = storeLogs.filter(l => l.status === 'approved' && l.date >= from && l.date <= to);
+
+  // Lifetime logs up to TO date (for LEFT calculation — what's actually left at end of period)
+  const lifetimeApproved = storeLogs.filter(l => l.status === 'approved' && l.date <= to);
 
   // Build per-item totals
   const totals = {};
@@ -2320,6 +2324,8 @@ function renderStoreSummary() {
       received: 0, sold: 0,
       staffCreditQty: 0, staffCreditAmt: 0,
       custSoldQty: 0, cashStaffQty: 0,
+      // Lifetime up-to-TO totals (for LEFT)
+      lifeCustSold: 0, lifeStaffCash: 0, lifeCredit: 0,
     };
   });
 
@@ -2337,12 +2343,26 @@ function renderStoreSummary() {
     });
   });
 
+  // Tally lifetime totals (up to TO date) for accurate LEFT calculation
+  lifetimeApproved.forEach(log => {
+    log.entries.forEach(e => {
+      const t = totals[e.itemId];
+      if (!t) return;
+      t.lifeCustSold  += e.custSoldQty  || 0;
+      t.lifeStaffCash += e.cashStaffQty || 0;
+      t.lifeCredit    += e.creditQty    || 0;
+      (e.custCredits||[]).forEach(c => { t.lifeCustSold += c.qty || 0; });
+    });
+  });
+
   const rows = Object.values(totals).map(t => {
     // Use storeCredits for accurate staff credit amounts (single source of truth)
     const itemCredits = storeCredits.filter(c =>
       c.note && c.note.toLowerCase().startsWith(t.name.toLowerCase())
     );
     const creditAmtFromStore = itemCredits.reduce((s,c) => s + c.amount, 0);
+    // LEFT = stock - LIFETIME sales up to TO date (reflects actual physical stock at end of period)
+    const lifetimeSold = t.lifeCustSold + t.lifeStaffCash + t.lifeCredit;
     return {
       ...t,
       costPrice:      t.costPrice || 0,
@@ -2350,7 +2370,8 @@ function renderStoreSummary() {
       credit:         t.staffCreditQty,
       staffCash:      t.cashStaffQty,
       staffCreditAmt: creditAmtFromStore || t.staffCreditAmt,
-      remaining:      Math.max(0, t.initialQty - t.custSoldQty - t.staffCreditQty - t.cashStaffQty),
+      lifetimeSold,
+      remaining:      Math.max(0, t.initialQty - lifetimeSold),
       cashRevenue:    (t.custSoldQty * t.custPrice) + (t.cashStaffQty * t.staffPrice),
     };
   });
@@ -2391,11 +2412,14 @@ function renderStoreSummary() {
   const stats = statsEl;
 
   // Capital & profit calculations
-  const totCapital      = rows.reduce((s,r) => s + (r.costPrice||0) * r.initialQty, 0);
-  const totCapitalUsed  = rows.reduce((s,r) => s + (r.costPrice||0) * (r.custSold + r.credit + r.staffCash), 0);
-  const totCapitalLeft  = rows.reduce((s,r) => s + (r.costPrice||0) * r.remaining, 0);
-  const totRevenue      = totCashRev + totStaffCredit;
-  const totProfit       = totRevenue - totCapitalUsed;
+  // Capital In Stock uses LIFETIME remaining (so it matches physical inventory)
+  // Capital Used reflects period activity to match Revenue and give meaningful Profit for the period
+  const totCapital         = rows.reduce((s,r) => s + (r.costPrice||0) * r.initialQty, 0);
+  const totCapitalUsed     = rows.reduce((s,r) => s + (r.costPrice||0) * (r.custSold + r.credit + r.staffCash), 0);
+  const totCapitalLifetime = rows.reduce((s,r) => s + (r.costPrice||0) * r.lifetimeSold, 0);
+  const totCapitalLeft     = rows.reduce((s,r) => s + (r.costPrice||0) * r.remaining, 0);
+  const totRevenue         = totCashRev + totStaffCredit;
+  const totProfit          = totRevenue - totCapitalUsed;
 
   stats.innerHTML = `
     <!-- Inventory toggle button — manager only -->
@@ -2515,8 +2539,10 @@ function renderStoreSummary() {
             </div>
 
             ${(!currentUser || currentUser.role === 'manager' || appSettings.inventoryVisible) ? `
-            <div style="font-size:11px;color:#9ca3af;margin-top:6px;text-align:center;">
-              ${r.initialQty} − ${r.custSold} 🛒 − ${r.staffCash} 💵 − ${r.credit} 👤 = <strong style="color:${r.remaining<=0?'#dc2626':r.remaining<=3?'#b45309':'#15803d'};">${r.remaining} left</strong>
+            <div style="font-size:11px;color:#9ca3af;margin-top:6px;text-align:center;line-height:1.5;">
+              Period: ${r.custSold} 🛒 + ${r.staffCash} 💵 + ${r.credit} 👤 = <strong>${r.custSold + r.staffCash + r.credit} sold</strong>
+              <br>
+              Stock at end of ${fmtDate(to)}: ${r.initialQty} − ${r.lifetimeSold} lifetime = <strong style="color:${r.remaining<=0?'#dc2626':r.remaining<=3?'#b45309':'#15803d'};">${r.remaining} left</strong>
             </div>` : ''}
 
             ${r.staffCreditAmt>0 ? `
@@ -2548,7 +2574,7 @@ function renderStoreSummary() {
 
       // Flatten all entries with parent log info
       let entries = [];
-      approved.forEach(log => log.entries.forEach(e => entries.push({...e, _date: log.date, _staffId: log.staffId, _logId: log.id})));
+      approved.forEach(log => log.entries.forEach(e => entries.push({...e, _date: log.date, _staffId: log.staffId, _logId: log.id, _ts: log.submittedAt || ''})));
 
       // Apply filters
       if (histFrom)  entries = entries.filter(e => e._date >= histFrom);
@@ -2564,8 +2590,21 @@ function renderStoreSummary() {
       const tCredit   = entries.reduce((s,e) => s + (e.creditQty||0), 0);
       const tCreditAmt= entries.reduce((s,e) => s + (e.creditAmt||0), 0);
 
-      // Sort entries newest first
-      entries.sort((a,b) => b._date.localeCompare(a._date));
+      // Sort entries newest first (by timestamp if available, otherwise by date)
+      entries.sort((a,b) => {
+        if (a._ts && b._ts) return b._ts.localeCompare(a._ts);
+        return b._date.localeCompare(a._date);
+      });
+
+      // Calculate total revenue for filtered range
+      const tCustomerAmt = entries.reduce((s,e) => {
+        const item = storeItems.find(i => i.id === e.itemId);
+        return s + ((e.custSoldQty||0) * (item?.custPrice||0));
+      }, 0);
+      const tStaffCashAmt = entries.reduce((s,e) => {
+        const item = storeItems.find(i => i.id === e.itemId);
+        return s + ((e.cashStaffQty||0) * (item?.staffPrice||0));
+      }, 0);
 
       return `
       <div class="section-title" style="margin-top:10px;">📋 Sold History
@@ -2606,15 +2645,15 @@ function renderStoreSummary() {
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px;">
         <div style="background:#ecfdf5;border:1px solid #86efac;border-radius:8px;padding:8px;text-align:center;">
           <div style="font-size:18px;font-weight:800;color:#047857;">${tCustomer}</div>
-          <div style="font-size:9px;color:#374151;font-weight:700;text-transform:uppercase;">🛒 Customer</div>
+          <div style="font-size:9px;color:#374151;font-weight:700;text-transform:uppercase;">🛒 Customer · ${peso(tCustomerAmt)}</div>
         </div>
         <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:8px;text-align:center;">
           <div style="font-size:18px;font-weight:800;color:#1d4ed8;">${tStaffCash}</div>
-          <div style="font-size:9px;color:#374151;font-weight:700;text-transform:uppercase;">💵 Staff Cash</div>
+          <div style="font-size:9px;color:#374151;font-weight:700;text-transform:uppercase;">💵 Staff Cash · ${peso(tStaffCashAmt)}</div>
         </div>
         <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:8px;text-align:center;">
           <div style="font-size:18px;font-weight:800;color:#dc2626;">${tCredit}</div>
-          <div style="font-size:9px;color:#374151;font-weight:700;text-transform:uppercase;">👤 ${peso(tCreditAmt)}</div>
+          <div style="font-size:9px;color:#374151;font-weight:700;text-transform:uppercase;">👤 Credit · ${peso(tCreditAmt)}</div>
         </div>
       </div>
 
@@ -2625,13 +2664,28 @@ function renderStoreSummary() {
           : entries.map(e => {
             const item = storeItems.find(i => i.id === e.itemId);
             const parts = [];
-            if (e.custSoldQty > 0)  parts.push(`🛒 ${e.custSoldQty} customer`);
-            if (e.cashStaffQty > 0) parts.push(`💵 ${e.cashStaffQty} staff cash${e.cashStaffId ? ' — ' + getStaffName(e.cashStaffId) : ''}`);
-            if (e.creditQty > 0)    parts.push(`👤 ${e.creditQty} credit${e.creditStaffId ? ' — ' + getStaffName(e.creditStaffId) : ''}`);
+            if (e.custSoldQty > 0) {
+              const amt = (e.custSoldQty||0) * (item?.custPrice||0);
+              parts.push(`🛒 ${e.custSoldQty} customer · ${peso(amt)}`);
+            }
+            if (e.cashStaffQty > 0) {
+              const amt = (e.cashStaffQty||0) * (item?.staffPrice||0);
+              parts.push(`💵 ${e.cashStaffQty} staff cash · ${peso(amt)}${e.cashStaffId ? ' — ' + getStaffName(e.cashStaffId) : ''}`);
+            }
+            if (e.creditQty > 0) {
+              const amt = e.creditAmt || (e.creditQty * (item?.staffPrice||0));
+              parts.push(`👤 ${e.creditQty} credit · ${peso(amt)}${e.creditStaffId ? ' — ' + getStaffName(e.creditStaffId) : ''}`);
+            }
+            // Format timestamp: extract time portion if available
+            let timeStr = '';
+            if (e._ts) {
+              const m = e._ts.match(/(\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM)?)/i);
+              if (m) timeStr = ' at ' + m[1];
+            }
             return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #f5f5f5;">
-              <div>
+              <div style="flex:1;min-width:0;">
                 <div style="font-weight:700;font-size:14px;color:#111;">${item ? item.name : 'Unknown'}</div>
-                <div style="font-size:12px;color:#6b7280;">${fmtDate(e._date)} · by ${getStaffName(e._staffId)}</div>
+                <div style="font-size:12px;color:#6b7280;">${fmtDate(e._date)}${timeStr} · by ${getStaffName(e._staffId)}</div>
                 <div style="font-size:12px;color:#374151;margin-top:2px;">${parts.join(' · ') || 'No qty'}</div>
               </div>
               <button onclick="deleteSoldLog(${e._logId})" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;margin-left:10px;">✕ Remove</button>
