@@ -1080,6 +1080,61 @@ const todayISO = () => {
 const fmtDate  = d => new Date(d+'T00:00:00+08:00').toLocaleDateString('en-PH',{timeZone:MANILA_TZ,month:'short',day:'numeric',year:'numeric'});
 const getStaffName = id => (staff.find(x=>x.id===id)||{name:'Unknown'}).name;
 
+// ===== Manila date auto-rollover watcher =====
+// Tracks current Manila date. Every minute, checks if Manila date changed.
+// If yes, updates all "today" displays automatically. This guarantees date
+// flips at 00:00 Manila time, regardless of device timezone setting.
+let _currentManilaDate = todayISO();
+
+function manilaDateRolloverCheck() {
+  const nowManilaDate = todayISO();
+  if (nowManilaDate !== _currentManilaDate) {
+    console.log('Manila date rolled over from', _currentManilaDate, 'to', nowManilaDate);
+    _currentManilaDate = nowManilaDate;
+    // Update header date display
+    try {
+      const dateEl = document.getElementById('todayDate');
+      if (dateEl) {
+        dateEl.innerHTML = new Date().toLocaleDateString('en-PH',{timeZone:MANILA_TZ,month:'short',day:'numeric',year:'numeric'}) +
+          (currentUser ? `<br><span style="color:#dc2626;font-size:12px;">👤 ${currentUser.display}</span>` : '');
+      }
+    } catch(e) {}
+    // Update locked date fields (for encoders/viewers)
+    refreshLockedDateFields();
+    // Re-render visible tabs so they show new date
+    try { renderAttendance(); renderTips(); renderDeductions(); renderStoreLog(); renderStoreSummary(); } catch(e) {}
+  }
+}
+
+// Force locked date fields to today's Manila date
+function refreshLockedDateFields() {
+  const today = todayISO();
+  // Sold tab date — always set to today for encoders/viewers
+  if (currentUser && currentUser.role !== 'manager') {
+    const logDateInp = document.getElementById('logDate');
+    if (logDateInp) logDateInp.value = today;
+    const tipDateInp = document.getElementById('tipDate');
+    if (tipDateInp) tipDateInp.value = today;
+  }
+}
+
+// Run rollover check every minute
+setInterval(manilaDateRolloverCheck, 60000);
+
+// Also check when the browser tab becomes visible again (user returned to app)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    manilaDateRolloverCheck();
+    refreshLockedDateFields();
+  }
+});
+
+// Also check when window regains focus
+window.addEventListener('focus', () => {
+  manilaDateRolloverCheck();
+  refreshLockedDateFields();
+});
+
 // ===== Initial setup =====
 try {
   document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-PH',{timeZone:MANILA_TZ,month:'short',day:'numeric',year:'numeric'});
@@ -1377,6 +1432,10 @@ function updateTipPreview() {
 
 function addTipPool() {
   if (window._tipViewOnly) { alert('You do not have permission to encode tips.'); return; }
+  // For encoders: force date to current Manila today (protects against stuck date field)
+  if (window._lockTipDate) {
+    document.getElementById('tipDate').value = todayISO();
+  }
   const date   = document.getElementById('tipDate').value;
   const amount = parseFloat(document.getElementById('tipAmount').value);
   if (!date||!amount||amount<=0) { alert('Enter date and amount'); return; }
@@ -2014,6 +2073,11 @@ function updateCustSoldPreview() {
 
 // ---- DAILY LOG ----
 function addLogEntry() {
+  // For encoders/viewers: force date to current Manila today, ignore field value
+  // (protects against stuck date fields if app was left open past midnight)
+  if (currentUser && currentUser.role !== 'manager') {
+    document.getElementById('logDate').value = todayISO();
+  }
   const itemId        = parseInt(document.getElementById('logItem').value);
   const date          = document.getElementById('logDate').value;
   // Auto-assign logged-in user as staff if not manager
@@ -2885,6 +2949,8 @@ function _switchToTab(tabName) {
   document.querySelectorAll('#bottomNav button').forEach(b => b.classList.remove('active'));
   const btn = document.querySelector(`#bottomNav button[data-tab="${tabName}"]`);
   if (btn) btn.classList.add('active');
+  // Refresh locked date fields on every tab switch (catches midnight rollover)
+  try { refreshLockedDateFields(); manilaDateRolloverCheck(); } catch(e) {}
 }
 
 // Add logout button to reset button area
