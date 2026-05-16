@@ -502,6 +502,55 @@ if ('caches' in window) {
   </div>
 </div>
 
+<!-- End Payroll Period modal -->
+<div id="endPayrollModal" style="display:none; position:fixed; inset:0; z-index:999; background:rgba(0,0,0,0.75); align-items:center; justify-content:center; padding:24px;">
+  <div style="background:#fff; border-radius:16px; padding:24px; max-width:380px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+    <div style="text-align:center; margin-bottom:18px;">
+      <div style="font-size:36px; margin-bottom:6px;">💰</div>
+      <div class="df" style="font-size:20px; font-weight:700; color:#111;">End Payroll Period</div>
+      <div style="font-size:12px; color:#6b7280; margin-top:4px;">Collect cash from staff</div>
+    </div>
+
+    <!-- Summary of what's expected -->
+    <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:10px; padding:12px; margin-bottom:14px;">
+      <div style="display:flex; justify-content:space-between; padding:4px 0; font-size:13px;">
+        <span style="color:#6b7280;">💵 Cash Sales:</span>
+        <span class="df" style="font-weight:700; color:#111;" id="epCashAmt">₱0.00</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; padding:4px 0; font-size:13px;">
+        <span style="color:#6b7280;">👤 Credits (paid via payroll):</span>
+        <span class="df" style="font-weight:700; color:#111;" id="epCreditAmt">₱0.00</span>
+      </div>
+      <div style="border-top:1px solid #e5e7eb; margin:6px 0; padding-top:6px; display:flex; justify-content:space-between; font-size:14px;">
+        <span style="color:#111; font-weight:700;">TOTAL EXPECTED:</span>
+        <span class="df" style="font-weight:700; color:#dc2626;" id="epTotalAmt">₱0.00</span>
+      </div>
+    </div>
+
+    <!-- Actual received -->
+    <div style="margin-bottom:10px;">
+      <label style="font-size:12px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:.05em;">Actual Cash Received (₱)</label>
+      <input id="epActual" type="number" step="0.01" min="0" placeholder="0.00" class="inp" style="margin-top:4px; font-size:18px; text-align:center;">
+      <div id="epDiscrepancy" style="font-size:12px; color:#6b7280; margin-top:4px; text-align:center;"></div>
+    </div>
+
+    <!-- Collection date -->
+    <div style="margin-bottom:10px;">
+      <label style="font-size:12px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:.05em;">Collection Date</label>
+      <input id="epDate" type="date" class="inp" style="margin-top:4px;">
+    </div>
+
+    <!-- Note -->
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:.05em;">Note (optional)</label>
+      <input id="epNote" type="text" placeholder="e.g. Used to buy new stock, deposited to bank..." class="inp" style="margin-top:4px;">
+    </div>
+
+    <button onclick="confirmEndPayroll()" style="width:100%; padding:14px; background:#15803d; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:8px;">✅ Confirm Collection</button>
+    <button onclick="hideEndPayrollModal()" style="width:100%; padding:12px; background:#f3f4f6; color:#374151; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer;">Cancel</button>
+  </div>
+</div>
+
 <div id="appBody">
 
 <!-- STAFF TAB -->
@@ -827,7 +876,9 @@ let sssDeductions= JSON.parse(localStorage.getItem('sssDeductions') || '[]');
 let storeCredits = JSON.parse(localStorage.getItem('storeCredits')  || '[]');
 let storeItems   = JSON.parse(localStorage.getItem('storeItems')    || '[]');
 let storeLogs    = JSON.parse(localStorage.getItem('storeLogs')     || '[]'); // pending + approved daily logs
+let cashCollections = JSON.parse(localStorage.getItem('cashCollections') || '[]'); // payroll-end cash collections
 // storeLogs entry: { id, date, staffId, entries:[{itemId,received,sold,creditStaffId,creditQty,creditAmt}], status:'pending'|'approved'|'rejected', submittedAt }
+// cashCollections entry: { id, date, expectedCash, expectedCredits, totalExpected, actualReceived, discrepancy, note, collectedBy, ts }
 
 // ===== ACCOUNTS — must be first =====
 const ACCOUNTS = {
@@ -846,7 +897,7 @@ const SUPA_URL = 'https://xeluvdciwlwmslwlskjl.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlbHV2ZGNpd2x3bXNsd2xza2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzMzE1NDgsImV4cCI6MjA5MzkwNzU0OH0.OgRmZuAAaO7juS3ustfXL4xMSpPNFtGSKWRZfpbLrVo';
 const SUPA_HEADERS = { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' };
 
-const KEYS = ['staff','attendance','tipPools','cashAdvances','sssDeductions','storeCredits','storeItems','storeLogs'];
+const KEYS = ['staff','attendance','tipPools','cashAdvances','sssDeductions','storeCredits','storeItems','storeLogs','cashCollections'];
 
 // App settings loaded at top of script
 
@@ -881,7 +932,7 @@ async function saveKey(key, value) {
 // ── Save all state ──
 function save() {
   _isSaving = true;
-  const state = { staff, attendance, tipPools, cashAdvances, sssDeductions, storeCredits, storeItems, storeLogs };
+  const state = { staff, attendance, tipPools, cashAdvances, sssDeductions, storeCredits, storeItems, storeLogs, cashCollections };
   Promise.all(KEYS.map(k => saveKey(k, state[k]))).then(() => { _isSaving = false; });
 }
 
@@ -897,6 +948,7 @@ function applyCloudData(map, rerender = true) {
   if (map.storeCredits)  { const v = parse('storeCredits');  if (v) { storeCredits  = v; changed = true; } }
   if (map.storeItems)    { const v = parse('storeItems');    if (v) { storeItems    = v; changed = true; } }
   if (map.storeLogs)     { const v = parse('storeLogs');     if (v) { storeLogs     = v; changed = true; } }
+  if (map.cashCollections){ const v = parse('cashCollections'); if (v) { cashCollections = v; changed = true; } }
   if (map.settings)      { const v = parse('settings');      if (v) { appSettings = v; if (currentUser) applyInventoryVisibility(); } }
   KEYS.forEach(k => { if (map[k]) localStorage.setItem(k, map[k]); });
   if (changed && rerender) {
@@ -2306,13 +2358,24 @@ function renderStoreSummary() {
   const totReceived    = rows.reduce((s,r) => s + r.received, 0);
   const totSold        = rows.reduce((s,r) => s + r.sold, 0);
   const totCredit      = rows.reduce((s,r) => s + r.totalCredit, 0);
-  const totCashRev     = rows.reduce((s,r) => s + r.cashRevenue, 0);
+  const grossCashRev   = rows.reduce((s,r) => s + r.cashRevenue, 0);
   // Use storeCredits as single source of truth — same data shown in Credits tab
-  const totStaffCredit = storeCredits
+  const grossStaffCredit = storeCredits
     .filter(c => (!from || c.date >= from) && (!to || c.date <= to))
     .reduce((s,c) => s + c.amount, 0);
   const totCustSold    = rows.reduce((s,r) => s + r.custSoldQty, 0);
   const totRemaining   = rows.reduce((s,r) => s + r.remaining, 0);
+
+  // Subtract previously collected amounts (payroll-end collections)
+  const collectedCash    = cashCollections
+    .filter(c => (!from || c.date >= from) && (!to || c.date <= to))
+    .reduce((s,c) => s + (c.expectedCash || 0), 0);
+  const collectedCredits = cashCollections
+    .filter(c => (!from || c.date >= from) && (!to || c.date <= to))
+    .reduce((s,c) => s + (c.expectedCredits || 0), 0);
+
+  const totCashRev      = Math.max(0, grossCashRev    - collectedCash);
+  const totStaffCredit  = Math.max(0, grossStaffCredit - collectedCredits);
 
   const statsEl    = document.getElementById('storeSummaryStats');
   const breakdown  = document.getElementById('storeSummaryBreakdown');
@@ -2348,12 +2411,12 @@ function renderStoreSummary() {
       <div class="stat-card" style="background:#000;color:#fff;grid-column:span 2;">
         <div style="font-size:10px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">💵 Cash in Hand (Est.)</div>
         <div class="df" style="font-size:26px;font-weight:700;margin:2px 0;">${peso(totCashRev)}</div>
-        <div style="font-size:11px;color:#6b7280;">Cash sales × customer price</div>
+        <div style="font-size:11px;color:#6b7280;">${collectedCash > 0 ? 'Net of '+peso(collectedCash)+' collected' : 'Cash sales × customer price'}</div>
       </div>
       <div class="stat-card" style="background:#dc2626;color:#fff;">
         <div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">👤 Staff Credit</div>
         <div class="df" style="font-size:18px;font-weight:700;">${peso(totStaffCredit)}</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.7);">Goes to payroll</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.7);">${collectedCredits > 0 ? 'Net of '+peso(collectedCredits)+' paid' : 'Goes to payroll'}</div>
       </div>
       <div class="stat-card" style="background:#15803d;color:#fff;">
         <div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">🛒 Sold to Customer</div>
@@ -2361,6 +2424,21 @@ function renderStoreSummary() {
         <div style="font-size:11px;color:rgba(255,255,255,.7);">Cash only</div>
       </div>
     </div>
+
+    <!-- End Payroll Period button — manager only -->
+    ${currentUser && currentUser.role === 'manager' ? `
+    <div style="margin-top:10px;">
+      <button onclick="showEndPayrollModal(${grossCashRev - collectedCash}, ${grossStaffCredit - collectedCredits})"
+        style="width:100%;padding:12px;background:#1e3a5f;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+        💰 End Payroll Period — Collect Cash
+      </button>
+      ${cashCollections.length ? `
+      <button onclick="toggleCollectionHistory()" id="collHistToggle"
+        style="margin-top:6px;width:100%;padding:8px;background:#f3f4f6;color:#374151;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">
+        📜 View Collection History (${cashCollections.length})
+      </button>
+      <div id="collectionHistoryBox" style="display:none;margin-top:6px;"></div>` : ''}
+    </div>` : ''}
 
     <!-- Capital & Profit section -->
     <div class="section-title" style="margin-top:14px;">💰 Capital & Profit</div>
@@ -2674,6 +2752,116 @@ function toggleInventoryVisibility() {
 // ===== FACTORY RESET =====
 const RESET_PIN = '1234'; // Change this to your preferred PIN
 
+// ===== END PAYROLL PERIOD =====
+let _epExpectedCash = 0;
+let _epExpectedCredits = 0;
+
+function showEndPayrollModal(cashAmt, creditAmt) {
+  _epExpectedCash = cashAmt;
+  _epExpectedCredits = creditAmt;
+  const total = cashAmt + creditAmt;
+  document.getElementById('epCashAmt').textContent = peso(cashAmt);
+  document.getElementById('epCreditAmt').textContent = peso(creditAmt);
+  document.getElementById('epTotalAmt').textContent = peso(total);
+  document.getElementById('epActual').value = total.toFixed(2);
+  document.getElementById('epDate').value = todayISO();
+  document.getElementById('epNote').value = '';
+  document.getElementById('epDiscrepancy').textContent = '';
+  document.getElementById('endPayrollModal').style.display = 'flex';
+  // Live discrepancy calculation
+  document.getElementById('epActual').oninput = function() {
+    const actual = parseFloat(this.value) || 0;
+    const diff = actual - total;
+    const diffEl = document.getElementById('epDiscrepancy');
+    if (Math.abs(diff) < 0.01) {
+      diffEl.style.color = '#15803d';
+      diffEl.textContent = '✓ Exact match';
+    } else if (diff < 0) {
+      diffEl.style.color = '#dc2626';
+      diffEl.textContent = '⚠️ Short by ' + peso(Math.abs(diff));
+    } else {
+      diffEl.style.color = '#1d4ed8';
+      diffEl.textContent = '➕ Over by ' + peso(diff);
+    }
+  };
+}
+
+function hideEndPayrollModal() {
+  document.getElementById('endPayrollModal').style.display = 'none';
+}
+
+function confirmEndPayroll() {
+  const actual    = parseFloat(document.getElementById('epActual').value) || 0;
+  const date      = document.getElementById('epDate').value || todayISO();
+  const note      = document.getElementById('epNote').value.trim();
+  const total     = _epExpectedCash + _epExpectedCredits;
+  const diff      = actual - total;
+
+  let confirmMsg = `Confirm collection?\n\n`;
+  confirmMsg += `Expected: ${peso(total)}\n`;
+  confirmMsg += `Received: ${peso(actual)}\n`;
+  if (Math.abs(diff) > 0.01) {
+    confirmMsg += `${diff < 0 ? 'SHORT' : 'OVER'} by ${peso(Math.abs(diff))}\n`;
+  }
+  confirmMsg += `\nAfter confirming:\n• Cash in Hand resets to ₱0\n• Outstanding credits cleared\n• Recorded in collection history`;
+  if (!confirm(confirmMsg)) return;
+
+  cashCollections.push({
+    id: Date.now(),
+    date,
+    expectedCash: _epExpectedCash,
+    expectedCredits: _epExpectedCredits,
+    totalExpected: total,
+    actualReceived: actual,
+    discrepancy: diff,
+    note,
+    collectedBy: currentUser ? currentUser.display : 'Unknown',
+    ts: new Date().toLocaleString('en-PH', { timeZone: MANILA_TZ })
+  });
+  save();
+  hideEndPayrollModal();
+  renderStoreSummary();
+  alert(`✅ Collection recorded.\n\n${peso(actual)} collected on ${fmtDate(date)}.\n\nCash in Hand and Credits reset.`);
+}
+
+function toggleCollectionHistory() {
+  const box = document.getElementById('collectionHistoryBox');
+  const btn = document.getElementById('collHistToggle');
+  if (!box) return;
+  if (box.style.display === 'none') {
+    box.style.display = 'block';
+    btn.textContent = '📜 Hide Collection History';
+    box.innerHTML = [...cashCollections].reverse().map(c => `
+      <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:10px; margin-bottom:6px; font-size:12px;">
+        <div style="display:flex; justify-content:space-between; font-weight:700; color:#111;">
+          <span>${fmtDate(c.date)}</span>
+          <span style="color:#15803d;">${peso(c.actualReceived)}</span>
+        </div>
+        <div style="color:#6b7280; margin-top:3px;">
+          Expected: ${peso(c.totalExpected)}
+          ${Math.abs(c.discrepancy) > 0.01 ? `<span style="color:${c.discrepancy<0?'#dc2626':'#1d4ed8'};"> · ${c.discrepancy<0?'short':'over'} ${peso(Math.abs(c.discrepancy))}</span>` : ''}
+        </div>
+        ${c.note ? `<div style="color:#374151; margin-top:3px; font-style:italic;">"${c.note}"</div>` : ''}
+        <div style="color:#9ca3af; margin-top:3px; font-size:11px;">by ${c.collectedBy}
+          <button onclick="deleteCollection(${c.id})" style="float:right; background:#fef2f2; border:1px solid #fecaca; color:#dc2626; border-radius:6px; padding:2px 8px; font-size:10px; font-weight:700; cursor:pointer;">✕ Undo</button>
+        </div>
+      </div>`).join('');
+  } else {
+    box.style.display = 'none';
+    btn.textContent = `📜 View Collection History (${cashCollections.length})`;
+  }
+}
+
+function deleteCollection(id) {
+  const c = cashCollections.find(x => x.id === id);
+  if (!c) return;
+  if (!confirm(`Undo collection from ${fmtDate(c.date)} (${peso(c.actualReceived)})?\n\nCash in Hand and Credits will be restored.`)) return;
+  cashCollections = cashCollections.filter(x => x.id !== id);
+  save();
+  renderStoreSummary();
+  alert('✅ Collection undone. Cash and Credits restored.');
+}
+
 function showResetModal() {
   document.getElementById('resetModal').style.display = 'flex';
   document.getElementById('resetPin').value = '';
@@ -2724,6 +2912,7 @@ function doFactoryReset() {
   localStorage.removeItem('storeCredits');
   localStorage.removeItem('storeItems');
   localStorage.removeItem('storeLogs');
+  localStorage.removeItem('cashCollections');
 
   staff = [
     { id: 1, name: 'Kevin John Alib',        position: 'Staff', dailyRate: 450 },
