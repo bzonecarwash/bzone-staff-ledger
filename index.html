@@ -2641,17 +2641,6 @@ function renderStoreSummary() {
             <div style="margin-top:5px;">
               <span style="font-size:12px;color:#dc2626;font-weight:700;">👤 Staff credit value: ${peso(r.staffCreditAmt)}</span>
             </div>` : ''}
-
-            <!-- Restock button — manager only -->
-            ${!window._staffCannotDelete ? `
-            <div style="margin-top:8px;">
-              ${r.remaining <= 0
-                ? `<button onclick="restockItem(${r.id})" style="width:100%;padding:10px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">🔄 RESTOCK NOW</button>`
-                : r.remaining <= 3
-                ? `<button onclick="restockItem(${r.id})" style="width:100%;padding:9px;background:#f59e0b;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">📦 Add More Stock</button>`
-                : `<button onclick="restockItem(${r.id})" style="width:100%;padding:8px;background:#f3f4f6;color:#374151;border:1px solid #e5e7eb;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;">📦 Restock</button>`
-              }
-            </div>` : ''}
           </div>`).join('')}
     </div>
 
