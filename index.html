@@ -2367,14 +2367,22 @@ function renderStoreSummary() {
     // Walk through restock history to find what qty was at that time
     let historicalQty = parseInt(i.qty) || 0;
     if (i.restockHistory && i.restockHistory.length > 0) {
-      // Sort restock history by date ascending
-      const sorted = [...i.restockHistory].sort((a,b) => a.date.localeCompare(b.date));
+      // Sort restock history by timestamp ascending
+      const sorted = [...i.restockHistory].sort((a,b) => {
+        const tsA = a.timestamp || a.ts || a.date;
+        const tsB = b.timestamp || b.ts || b.date;
+        return new Date(tsA) - new Date(tsB);
+      });
       
       // Find the appropriate qty for TO date
       let found = false;
       for (let j = 0; j < sorted.length; j++) {
         const r = sorted[j];
-        if (r.date > to) {
+        // Extract date from timestamp
+        const rDate = (r.timestamp || r.ts || r.date).split(',')[0].split('/');
+        const rDateISO = `${rDate[2]}-${rDate[0].padStart(2,'0')}-${rDate[1].padStart(2,'0')}`;
+        
+        if (rDateISO > to) {
           // This restock happened after TO date — use previous state
           if (j > 0) {
             // Use the qty from previous restock
@@ -2428,17 +2436,30 @@ function renderStoreSummary() {
       const item = storeItems.find(i => i.id === e.itemId);
       if (!item) return;
       
-      // Find the appropriate restock cutoff for the TO date
-      let cutoffDate = null;
+      // Find the appropriate restock cutoff timestamp for the TO date
+      let cutoffTimestamp = null;
       if (item.restockHistory && item.restockHistory.length > 0) {
         // Find the most recent restock that happened on or before TO date
-        const sorted = [...item.restockHistory].sort((a,b) => b.date.localeCompare(a.date));
-        const relevant = sorted.find(r => r.date <= to);
-        if (relevant) cutoffDate = relevant.date;
+        const sorted = [...item.restockHistory].sort((a,b) => {
+          const tsA = a.timestamp || a.ts || a.date;
+          const tsB = b.timestamp || b.ts || b.date;
+          return new Date(tsB) - new Date(tsA);
+        });
+        const relevant = sorted.find(r => {
+          const rDate = (r.timestamp || r.ts || r.date).split(',')[0].split('/');
+          const rDateISO = `${rDate[2]}-${rDate[0].padStart(2,'0')}-${rDate[1].padStart(2,'0')}`;
+          return rDateISO <= to;
+        });
+        if (relevant) cutoffTimestamp = relevant.timestamp || relevant.ts || relevant.date;
       }
       
-      // Skip logs from before the restock cutoff (if one applies)
-      if (cutoffDate && log.date < cutoffDate) return;
+      // Skip logs from before the restock cutoff timestamp
+      if (cutoffTimestamp) {
+        const logTimestamp = log.submittedAt || (log.date + 'T00:00:00');
+        const cutoffMs = new Date(cutoffTimestamp).getTime();
+        const logMs = new Date(logTimestamp).getTime();
+        if (!isNaN(cutoffMs) && !isNaN(logMs) && logMs < cutoffMs) return;
+      }
       
       t.lifeCustSold  += e.custSoldQty  || 0;
       t.lifeStaffCash += e.cashStaffQty || 0;
@@ -2808,11 +2829,26 @@ function restockItem(itemId) {
   if (!item) return;
   const current = parseInt(item.qty) || 0;
   
-  // Calculate current remaining based on sales since last restock (or all time if never restocked)
-  const cutoffDate = item.restockedAt || '2000-01-01';
-  const soldSinceRestock = storeLogs.filter(l => l.status === 'approved' && l.date >= cutoffDate)
-    .flatMap(l => l.entries).filter(e => e.itemId === itemId)
-    .reduce((s, e) => s + (e.custSoldQty || 0) + (e.creditQty || 0) + (e.cashStaffQty || 0), 0);
+  // Calculate current remaining based on sales since last restock timestamp
+  const cutoffTimestamp = item.restockedAt || null;
+  let soldSinceRestock = 0;
+  
+  if (cutoffTimestamp) {
+    const cutoffMs = new Date(cutoffTimestamp).getTime();
+    soldSinceRestock = storeLogs.filter(l => l.status === 'approved')
+      .filter(l => {
+        const logMs = new Date(l.submittedAt || (l.date + 'T00:00:00')).getTime();
+        return !isNaN(logMs) && logMs >= cutoffMs;
+      })
+      .flatMap(l => l.entries).filter(e => e.itemId === itemId)
+      .reduce((s, e) => s + (e.custSoldQty || 0) + (e.creditQty || 0) + (e.cashStaffQty || 0), 0);
+  } else {
+    // No restock yet - count all sales
+    soldSinceRestock = storeLogs.filter(l => l.status === 'approved')
+      .flatMap(l => l.entries).filter(e => e.itemId === itemId)
+      .reduce((s, e) => s + (e.custSoldQty || 0) + (e.creditQty || 0) + (e.cashStaffQty || 0), 0);
+  }
+  
   const remaining = Math.max(0, current - soldSinceRestock);
 
   // Show modal
@@ -2857,21 +2893,23 @@ function confirmRestock() {
     `✅ Store credits preserved\n\nContinue?`
   )) return;
   
-  // Update item with new stock and restock date
+  // Update item with new stock and restock timestamp (full datetime for accurate cutoff)
   const oldQty = item.qty;  // Save old qty for history
   item.qty = newQty;
   if (newCost > 0) item.costPrice = newCost;
-  item.restockedAt = todayISO();  // This is the cutoff date for Summary calculations
+  const restockTimestamp = new Date().toLocaleString('en-PH', { timeZone: MANILA_TZ });
+  item.restockedAt = restockTimestamp;  // CRITICAL: Store full timestamp, not just date
   
   // Record restock in history (including old qty for historical reconstruction)
   if (!item.restockHistory) item.restockHistory = [];
   item.restockHistory.push({
     date: todayISO(),
+    timestamp: restockTimestamp,  // Full timestamp for comparison
     prevQty: oldQty,  // Stock before this restock
     newQty: newQty,   // Stock after this restock
     costPerUnit: newCost,
     totalCapital,
-    ts: new Date().toLocaleString('en-PH', { timeZone: MANILA_TZ })
+    ts: restockTimestamp
   });
   
   // DO NOT delete sold logs — they're preserved for audit
