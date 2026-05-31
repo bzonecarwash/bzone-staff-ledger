@@ -2547,13 +2547,21 @@ function renderStoreSummary() {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
       <div class="stat-card" style="background:#000;color:#fff;grid-column:span 2;">
         <div style="font-size:10px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">💵 Cash in Hand (Est.)</div>
-        <div class="df" style="font-size:26px;font-weight:700;margin:2px 0;">${peso(totCashRev)}</div>
-        <div style="font-size:11px;color:#6b7280;">${collectedCash > 0 ? 'Net of '+peso(collectedCash)+' collected' : 'Cash sales × customer price'}</div>
+        ${(currentUser && currentUser.role !== 'manager' && !appSettings.inventoryVisible)
+          ? `<div class="df" style="font-size:26px;font-weight:700;margin:2px 0;color:#6b7280;">🔒</div>
+             <div style="font-size:11px;color:#6b7280;">Hidden by manager</div>`
+          : `<div class="df" style="font-size:26px;font-weight:700;margin:2px 0;">${peso(totCashRev)}</div>
+             <div style="font-size:11px;color:#6b7280;">${collectedCash > 0 ? 'Net of '+peso(collectedCash)+' collected' : 'Cash sales × customer price'}</div>`
+        }
       </div>
       <div class="stat-card" style="background:#dc2626;color:#fff;">
         <div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">👤 Staff Credit</div>
-        <div class="df" style="font-size:18px;font-weight:700;">${peso(totStaffCredit)}</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.7);">${collectedCredits > 0 ? 'Net of '+peso(collectedCredits)+' paid' : 'Goes to payroll'}</div>
+        ${(currentUser && currentUser.role !== 'manager' && !appSettings.inventoryVisible)
+          ? `<div class="df" style="font-size:18px;font-weight:700;color:rgba(255,255,255,.5);">🔒</div>
+             <div style="font-size:11px;color:rgba(255,255,255,.7);">Hidden by manager</div>`
+          : `<div class="df" style="font-size:18px;font-weight:700;">${peso(totStaffCredit)}</div>
+             <div style="font-size:11px;color:rgba(255,255,255,.7);">${collectedCredits > 0 ? 'Net of '+peso(collectedCredits)+' paid' : 'Goes to payroll'}</div>`
+        }
       </div>
       <div class="stat-card" style="background:#15803d;color:#fff;">
         <div style="font-size:10px;color:rgba(255,255,255,.7);font-weight:700;text-transform:uppercase;letter-spacing:.05em;">🛒 Sold to Customer</div>
