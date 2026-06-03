@@ -2207,6 +2207,30 @@ function addLogEntry() {
   // sold = credit + customer + staff cash — all deplete stock
   const totalDepleted = creditQty + custSoldQty + cashStaffQty;
 
+  // ===== HARD BLOCK: prevent over-sale (no override) =====
+  const _cutoffTs = item.restockedAt || null;
+  let _soldSince = 0;
+  if (_cutoffTs) {
+    const _cutoffMs = new Date(_cutoffTs).getTime();
+    _soldSince = storeLogs.filter(l => l.status === 'approved')
+      .filter(l => {
+        const _logMs = new Date(l.submittedAt || (l.date + 'T00:00:00')).getTime();
+        return !isNaN(_logMs) && _logMs >= _cutoffMs;
+      })
+      .flatMap(l => l.entries).filter(e => e.itemId === itemId)
+      .reduce((s, e) => s + (e.custSoldQty || 0) + (e.creditQty || 0) + (e.cashStaffQty || 0), 0);
+  } else {
+    _soldSince = storeLogs.filter(l => l.status === 'approved')
+      .flatMap(l => l.entries).filter(e => e.itemId === itemId)
+      .reduce((s, e) => s + (e.custSoldQty || 0) + (e.creditQty || 0) + (e.cashStaffQty || 0), 0);
+  }
+  const _currentStock = parseInt(item.qty) || 0;
+  const _stockRemaining = _currentStock - _soldSince;
+  if (totalDepleted > _stockRemaining) {
+    alert(`❌ NOT ENOUGH STOCK!\n\n${item.name}: Only ${Math.max(0, _stockRemaining)} left\nYou tried to log: ${totalDepleted}\n\nAsk manager to restock first.`);
+    return;
+  }
+
   storeLogs.push({
     id: Date.now(), date, staffId,
     entries: [{ itemId, received, sold: totalDepleted, creditStaffId, creditQty, creditAmt, custSoldQty, cashStaffId, cashStaffQty }],
@@ -2541,6 +2565,10 @@ function renderStoreSummary() {
       <button onclick="toggleInventoryVisibility()" id="inventoryToggleBtn2"
         style="width:100%;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:${appSettings.inventoryVisible?'#15803d':'#dc2626'};color:#fff;">
         ${appSettings.inventoryVisible ? '👁 Staff CAN SEE inventory — tap to HIDE' : '🔒 Inventory HIDDEN from staff — tap to REVEAL'}
+      </button>
+      <button onclick="reconcileOversales()"
+        style="margin-top:6px;width:100%;padding:9px;border:1px solid #f59e0b;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:#fef3c7;color:#92400e;">
+        🔧 Reconcile Over-sales (since Jun 1, 2026)
       </button>
     </div>` : ''}
     <!-- Top summary cards -->
@@ -2928,6 +2956,118 @@ function confirmRestock() {
   renderStoreItems();
   renderStoreSummary();
   alert(`✅ Restocked! ${item.name} = ${newQty} units\nCapital: ${peso(totalCapital)}\nSummary counters reset, history preserved.`);
+}
+
+// ── Reconcile over-sales (auto-deduct over-sold qty from current stock) ──
+function reconcileOversales() {
+  // Cutoff: June 1, 2026 00:00 Manila local time
+  const cutoffStr = '2026-06-01T00:00:00';
+  const cutoffMs  = new Date(cutoffStr).getTime();
+
+  const adjustments = [];
+
+  storeItems.forEach(item => {
+    // Build chronological event timeline (restocks + approved sales)
+    const events = [];
+
+    if (item.restockHistory && item.restockHistory.length > 0) {
+      item.restockHistory.forEach(r => {
+        const ts = new Date(r.timestamp || r.ts || r.date).getTime();
+        if (!isNaN(ts)) {
+          events.push({ type: 'restock', ts, qty: r.newQty || r.qty || 0 });
+        }
+      });
+    }
+
+    storeLogs.filter(l => l.status === 'approved').forEach(log => {
+      log.entries.filter(e => e.itemId === item.id).forEach(e => {
+        const q = (e.custSoldQty || 0) + (e.creditQty || 0) + (e.cashStaffQty || 0);
+        if (q > 0) {
+          const ts = new Date(log.submittedAt || (log.date + 'T00:00:00')).getTime();
+          if (!isNaN(ts)) events.push({ type: 'sale', ts, qty: q });
+        }
+      });
+    });
+
+    events.sort((a, b) => a.ts - b.ts);
+
+    // Determine starting remaining (before first event)
+    let initialRemaining = 0;
+    if (item.restockHistory && item.restockHistory.length > 0) {
+      const sortedHist = [...item.restockHistory].sort((a, b) =>
+        new Date(a.timestamp || a.ts || a.date) - new Date(b.timestamp || b.ts || b.date));
+      initialRemaining = parseInt(sortedHist[0].prevQty) || 0;
+    } else {
+      initialRemaining = parseInt(item.qty) || 0;
+    }
+
+    let running   = initialRemaining;
+    let oversales = 0;
+
+    events.forEach(ev => {
+      if (ev.type === 'restock') {
+        running = ev.qty;
+      } else { // sale
+        if (ev.ts >= cutoffMs) {
+          if (running <= 0) {
+            oversales += ev.qty;          // entire sale is over-sale
+          } else if (running - ev.qty < 0) {
+            oversales += (ev.qty - running); // partial over-sale
+          }
+        }
+        running -= ev.qty;
+      }
+    });
+
+    if (oversales > 0) {
+      const currentQty = parseInt(item.qty) || 0;
+      const newQty     = Math.max(0, currentQty - oversales);
+      adjustments.push({ id: item.id, name: item.name, oldQty: currentQty, oversales, newQty });
+    }
+  });
+
+  if (adjustments.length === 0) {
+    alert('✅ No over-sales detected since June 1, 2026 00:00.\n\nAll items have correct stock counts.');
+    return;
+  }
+
+  let summary = '🔧 Over-sales detected since June 1, 2026 00:00:\n\n';
+  adjustments.forEach(a => {
+    summary += `• ${a.name}: ${a.oldQty} → ${a.newQty}  (deduct ${a.oversales})\n`;
+  });
+  summary += `\nApply these deductions to current stock?`;
+
+  if (!confirm(summary)) return;
+
+  const nowTs = new Date().toLocaleString('en-PH', { timeZone: MANILA_TZ });
+  adjustments.forEach(a => {
+    const it = storeItems.find(i => i.id === a.id);
+    if (!it) return;
+    it.qty = a.newQty;
+    it.restockedAt = nowTs;  // reset cutoff so prior sales aren't double-counted in display
+    if (!it.restockHistory) it.restockHistory = [];
+    it.restockHistory.push({
+      date: todayISO(),
+      timestamp: nowTs,
+      prevQty: a.oldQty,
+      newQty: a.newQty,
+      costPerUnit: it.costPrice || 0,
+      totalCapital: 0,
+      ts: nowTs,
+      reconciliation: true,
+      note: `Reconciled over-sales (since Jun 1): −${a.oversales}`
+    });
+  });
+
+  save();
+  renderStoreItems();
+  renderStoreSummary();
+
+  let success = '✅ Stock adjusted:\n\n';
+  adjustments.forEach(a => {
+    success += `• ${a.name}: ${a.oldQty} → ${a.newQty}\n`;
+  });
+  alert(success);
 }
 
 // ── Delete a specific sold log entry ──
